@@ -4,12 +4,17 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { listExpenses, type Expense } from "@/lib/expenses";
 import { useAuthGuard } from "@/lib/useAuthGuard";
-import { USERS } from "@/lib/auth";
-import { formatCurrency, formatPercent, formatDate } from "@/lib/format";
+import {
+  formatCompactCurrency,
+  formatCurrency,
+  formatPercent,
+  formatDate,
+} from "@/lib/format";
 import {
   filterByPeriod,
   foldTail,
   groupSum,
+  monthlyCategoryTotals,
   monthlyTotals,
   sumAmount,
   sumBonus,
@@ -18,10 +23,11 @@ import {
 import { StatTile } from "@/components/StatTile";
 import { BarList } from "@/components/charts/BarList";
 import { MonthlyColumns } from "@/components/charts/MonthlyColumns";
+import { CategoryTrendChart } from "@/components/charts/CategoryTrendChart";
 
 const PERIOD_OPTIONS: { value: Period; label: string }[] = [
   { value: "month", label: "Этот месяц" },
-  { value: "quarter", label: "3 месяца" },
+  { value: "previousMonth", label: "Прошлый месяц" },
   { value: "all", label: "Всё время" },
 ];
 
@@ -52,11 +58,8 @@ export default function DashboardPage() {
   const bonusByBank = foldTail(
     groupSum(scoped, (e) => e.payment_method, (e) => e.bonus),
   );
-  const byPerson = USERS.map((name) => ({
-    label: name,
-    value: sumAmount(scoped.filter((e) => e.user_name === name)),
-  }));
   const trend = monthlyTotals(expenses ?? [], 12);
+  const categoryTrend = monthlyCategoryTotals(expenses ?? [], 6);
   const topExpenses = [...scoped]
     .filter((e) => e.amount > 0)
     .sort((a, b) => b.amount - a.amount)
@@ -141,26 +144,20 @@ export default function DashboardPage() {
           </section>
 
           <section className="flex flex-col gap-4">
-            <h2 className="text-lg font-medium">По пользователю</h2>
-            <p className="text-xs text-slate-400 dark:text-slate-500">
-              Только записи с указанным пользователем.
-            </p>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {byPerson.map((person) => (
-                <StatTile
-                  key={person.label}
-                  label={person.label}
-                  value={formatCurrency(person.value)}
-                />
-              ))}
-            </div>
+            <h2 className="text-lg font-medium">
+              По месяцам (последние 12)
+            </h2>
+            <MonthlyColumns items={trend} formatValue={formatCompactCurrency} />
           </section>
 
           <section className="flex flex-col gap-4">
             <h2 className="text-lg font-medium">
-              По месяцам (последние 12)
+              По категориям по месяцам (последние 6)
             </h2>
-            <MonthlyColumns items={trend} formatValue={formatCurrency} />
+            <CategoryTrendChart
+              points={categoryTrend}
+              formatValue={formatCompactCurrency}
+            />
           </section>
 
           <section className="flex flex-col gap-4">

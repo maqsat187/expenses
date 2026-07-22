@@ -6,6 +6,18 @@ export function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
+// Short form for tight spaces (chart value labels): "7,5 тыс. ₸" instead of
+// "7 480 ₸". Built from the plain compact number rather than
+// `style: "currency"` + `notation: "compact"`, which prints odd trailing
+// zeros ("850,0") and can't be trusted to resolve the ₸ symbol everywhere.
+export function formatCompactCurrency(amount: number): string {
+  const compact = new Intl.NumberFormat("ru-RU", {
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(amount);
+  return `${compact} ₸`;
+}
+
 export function formatPercent(value: number): string {
   return `${new Intl.NumberFormat("ru-RU", {
     maximumFractionDigits: 1,

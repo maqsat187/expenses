@@ -1,3 +1,5 @@
+import { CATEGORICAL_CLASSES } from "@/lib/palette";
+
 type BarListItem = {
   label: string;
   value: number;
@@ -39,7 +41,7 @@ export function BarList({
           </span>
           <div className="h-5 flex-1 rounded-sm bg-slate-100 dark:bg-slate-800">
             <div
-              className="h-5 rounded-[4px] bg-[#2a78d6] dark:bg-[#3987e5]"
+              className={`h-5 rounded-[4px] ${CATEGORICAL_CLASSES[0]}`}
               style={{ width: `${(item.value / max) * 100}%` }}
               title={`${item.label}: ${formatValue(item.value)}`}
             />
