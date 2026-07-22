@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Expenses",
-  description: "Track and review household expenses.",
+  description: "Учёт семейных расходов.",
 };
 
 export default function RootLayout({

@@ -56,50 +56,39 @@ export function foldTail(
 
 export type MonthlyValue = { month: string; value: number };
 
+// Fixed window of `months` consecutive calendar months ending this month,
+// regardless of gaps in the data — a month with no expenses still gets its
+// own zero-value slot instead of being skipped (which would otherwise let
+// sparse data quietly stretch the window further back than "last N months").
+function lastMonthKeys(months: number): string[] {
+  const now = new Date();
+  const keys: string[] = [];
+  for (let i = months - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    keys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+  }
+  return keys;
+}
+
 export function monthlyTotals(expenses: Expense[], months = 12): MonthlyValue[] {
   const totals = new Map<string, number>();
   for (const expense of expenses) {
     const key = expense.date.slice(0, 7);
     totals.set(key, (totals.get(key) ?? 0) + expense.amount);
   }
-  return [...totals.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .slice(-months)
-    .map(([month, value]) => ({ month, value }));
+  return lastMonthKeys(months).map((month) => ({
+    month,
+    value: totals.get(month) ?? 0,
+  }));
 }
 
-export type MonthlyCategoryPoint = { month: string; values: GroupedValue[] };
-
-// Category spending per month, over the last `months` months present in the
-// data. The category set (and its stacking order) is fixed once from the
-// window's overall totals — top `keep` + "Other" — so every month's bar
-// stacks the same categories in the same order and color.
-export function monthlyCategoryTotals(
+export function monthlyTotalsForCategory(
   expenses: Expense[],
-  months = 6,
-  keep = 7,
-): MonthlyCategoryPoint[] {
-  const monthKeys = [...new Set(expenses.map((e) => e.date.slice(0, 7)))]
-    .sort()
-    .slice(-months);
-  const windowSet = new Set(monthKeys);
-  const windowExpenses = expenses.filter((e) => windowSet.has(e.date.slice(0, 7)));
-
-  const otherLabel = "Прочее";
-  const overall = foldTail(groupSum(windowExpenses, (e) => e.category), keep, otherLabel);
-  const categoryOrder = overall.map((c) => c.label);
-  const topCategories = new Set(categoryOrder.filter((label) => label !== otherLabel));
-
-  return monthKeys.map((month) => {
-    const sums = new Map<string, number>();
-    for (const expense of windowExpenses) {
-      if (expense.date.slice(0, 7) !== month) continue;
-      const key = topCategories.has(expense.category) ? expense.category : otherLabel;
-      sums.set(key, (sums.get(key) ?? 0) + expense.amount);
-    }
-    return {
-      month,
-      values: categoryOrder.map((label) => ({ label, value: sums.get(label) ?? 0 })),
-    };
-  });
+  category: string,
+  months = 12,
+): MonthlyValue[] {
+  return monthlyTotals(
+    expenses.filter((e) => e.category === category),
+    months,
+  );
 }

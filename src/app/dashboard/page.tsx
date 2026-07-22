@@ -14,8 +14,8 @@ import {
   filterByPeriod,
   foldTail,
   groupSum,
-  monthlyCategoryTotals,
   monthlyTotals,
+  monthlyTotalsForCategory,
   sumAmount,
   sumBonus,
   type Period,
@@ -23,7 +23,6 @@ import {
 import { StatTile } from "@/components/StatTile";
 import { BarList } from "@/components/charts/BarList";
 import { MonthlyColumns } from "@/components/charts/MonthlyColumns";
-import { CategoryTrendChart } from "@/components/charts/CategoryTrendChart";
 
 const PERIOD_OPTIONS: { value: Period; label: string }[] = [
   { value: "month", label: "Этот месяц" },
@@ -36,6 +35,7 @@ export default function DashboardPage() {
   const [expenses, setExpenses] = useState<Expense[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [period, setPeriod] = useState<Period>("month");
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -59,7 +59,16 @@ export default function DashboardPage() {
     groupSum(scoped, (e) => e.payment_method, (e) => e.bonus),
   );
   const trend = monthlyTotals(expenses ?? [], 12);
-  const categoryTrend = monthlyCategoryTotals(expenses ?? [], 6);
+
+  const categoryOptions = groupSum(expenses ?? [], (e) => e.category)
+    .sort((a, b) => b.value - a.value)
+    .map((c) => c.label);
+  const activeCategory = selectedCategory ?? categoryOptions[0] ?? null;
+  const categoryTrend = activeCategory
+    ? monthlyTotalsForCategory(expenses ?? [], activeCategory, 12)
+    : [];
+  const categoryTrendTotal = categoryTrend.reduce((sum, m) => sum + m.value, 0);
+
   const topExpenses = [...scoped]
     .filter((e) => e.amount > 0)
     .sort((a, b) => b.amount - a.amount)
@@ -151,13 +160,40 @@ export default function DashboardPage() {
           </section>
 
           <section className="flex flex-col gap-4">
-            <h2 className="text-lg font-medium">
-              По категориям по месяцам (последние 6)
-            </h2>
-            <CategoryTrendChart
-              points={categoryTrend}
-              formatValue={formatCompactCurrency}
-            />
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-lg font-medium">По категории по месяцам</h2>
+              {categoryOptions.length > 0 && (
+                <select
+                  value={activeCategory ?? ""}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  className="rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+                >
+                  {categoryOptions.map((category) => (
+                    <option key={category} value={category}>
+                      {category}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+            {activeCategory ? (
+              <>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  Итого за 12 мес.:{" "}
+                  <span className="font-medium text-slate-700 dark:text-slate-300">
+                    {formatCurrency(categoryTrendTotal)}
+                  </span>
+                </p>
+                <MonthlyColumns
+                  items={categoryTrend}
+                  formatValue={formatCompactCurrency}
+                />
+              </>
+            ) : (
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Нет данных.
+              </p>
+            )}
           </section>
 
           <section className="flex flex-col gap-4">

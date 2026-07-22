@@ -13,13 +13,13 @@ export function DeleteExpenseButton({
   const [pending, setPending] = useState(false);
 
   async function handleClick() {
-    if (!confirm("Delete this expense?")) return;
+    if (!confirm("Удалить эту запись?")) return;
     setPending(true);
     try {
       await deleteExpense(id);
       onDeleted(id);
     } catch {
-      alert("Failed to delete this expense. Try again.");
+      alert("Не удалось удалить запись. Попробуйте ещё раз.");
     } finally {
       setPending(false);
     }
@@ -32,7 +32,7 @@ export function DeleteExpenseButton({
       onClick={handleClick}
       className="text-sm text-red-600 hover:underline disabled:opacity-50 dark:text-red-400"
     >
-      {pending ? "Deleting…" : "Delete"}
+      {pending ? "Удаление…" : "Удалить"}
     </button>
   );
 }

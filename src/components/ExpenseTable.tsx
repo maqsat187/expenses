@@ -24,7 +24,7 @@ export function ExpenseTable(props: Props) {
   if (expenses.length === 0) {
     return (
       <p className="text-sm text-slate-500 dark:text-slate-400">
-        No expenses found.
+        Записи не найдены.
       </p>
     );
   }
@@ -43,7 +43,9 @@ export function ExpenseTable(props: Props) {
             <th className="px-3 py-2 text-right font-medium">Бонус</th>
             <th className="px-3 py-2 text-right font-medium">%</th>
             <th className="px-3 py-2 font-medium">Кто</th>
-            {props.showActions && <th className="px-3 py-2" />}
+            {props.showActions && (
+              <th className="sticky right-0 border-l border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-900" />
+            )}
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
@@ -99,14 +101,14 @@ export function ExpenseTable(props: Props) {
                   {expense.user_name ?? "—"}
                 </td>
                 {props.showActions && (
-                  <td className="px-3 py-2">
+                  <td className="sticky right-0 border-l border-slate-200 bg-white px-3 py-2 dark:border-slate-800 dark:bg-slate-950">
                     <div className="flex items-center justify-end gap-3">
                       <button
                         type="button"
                         onClick={() => props.onEditStart(expense.id)}
                         className="text-sm text-slate-600 hover:underline dark:text-slate-400"
                       >
-                        Edit
+                        Изменить
                       </button>
                       <DeleteExpenseButton
                         id={expense.id}
