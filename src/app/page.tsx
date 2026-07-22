@@ -1,33 +1,40 @@
+"use client";
+
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
+import { useEffect, useState } from "react";
+import { listExpenses, type Expense } from "@/lib/expenses";
 import { formatCurrency } from "@/lib/format";
 import { CategoryBreakdown } from "@/components/CategoryBreakdown";
 import { ExpenseTable } from "@/components/ExpenseTable";
 
-export const dynamic = "force-dynamic";
-
-function monthRange(date: Date) {
-  const start = new Date(date.getFullYear(), date.getMonth(), 1);
-  const end = new Date(date.getFullYear(), date.getMonth() + 1, 1);
-  return { start, end };
+function currentYearMonth(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
-export default async function DashboardPage() {
-  const now = new Date();
-  const { start, end } = monthRange(now);
+export default function DashboardPage() {
+  const [expenses, setExpenses] = useState<Expense[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const [monthExpenses, totalAllTime, recentExpenses] = await Promise.all([
-    prisma.expense.findMany({
-      where: { date: { gte: start, lt: end } },
-    }),
-    prisma.expense.aggregate({ _sum: { amount: true } }),
-    prisma.expense.findMany({
-      orderBy: { date: "desc" },
-      take: 5,
-    }),
-  ]);
+  useEffect(() => {
+    listExpenses()
+      .then(setExpenses)
+      .catch(() => setError("Could not load expenses from Supabase."));
+  }, []);
 
+  if (error) {
+    return <p className="text-sm text-red-600 dark:text-red-400">{error}</p>;
+  }
+  if (!expenses) {
+    return (
+      <p className="text-sm text-slate-500 dark:text-slate-400">Loading…</p>
+    );
+  }
+
+  const yearMonth = currentYearMonth();
+  const monthExpenses = expenses.filter((e) => e.date.startsWith(yearMonth));
   const monthTotal = monthExpenses.reduce((sum, e) => sum + e.amount, 0);
+  const allTimeTotal = expenses.reduce((sum, e) => sum + e.amount, 0);
 
   const byCategory = new Map<string, number>();
   for (const expense of monthExpenses) {
@@ -40,10 +47,12 @@ export default async function DashboardPage() {
     .map(([category, total]) => ({ category, total }))
     .sort((a, b) => b.total - a.total);
 
+  const recentExpenses = expenses.slice(0, 5);
+
   const monthLabel = new Intl.DateTimeFormat("en-US", {
     month: "long",
     year: "numeric",
-  }).format(now);
+  }).format(new Date());
 
   return (
     <div className="flex flex-col gap-10">
@@ -76,7 +85,7 @@ export default async function DashboardPage() {
             All-time total
           </p>
           <p className="mt-1 text-2xl font-semibold">
-            {formatCurrency(totalAllTime._sum.amount ?? 0)}
+            {formatCurrency(allTimeTotal)}
           </p>
         </div>
       </div>

@@ -43,15 +43,9 @@ export default function RootLayout({
               </Link>
               <Link
                 href="/expenses"
-                className="text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
-              >
-                All expenses
-              </Link>
-              <Link
-                href="/expenses/new"
                 className="rounded-md bg-slate-900 px-3 py-1.5 font-medium text-white hover:bg-slate-700 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
               >
-                Add expense
+                All expenses
               </Link>
             </div>
           </nav>
