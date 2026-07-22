@@ -1,14 +1,17 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
-import { CATEGORIES, isCategory } from "@/lib/categories";
+import { useMemo, useState, type FormEvent } from "react";
+import { CATEGORIES } from "@/lib/categories";
+import { PAYMENT_METHODS } from "@/lib/banks";
+import { formatPercent, toDateInputValue } from "@/lib/format";
 import type { ExpenseInput } from "@/lib/expenses";
-import { toDateInputValue } from "@/lib/format";
+
+type FormValues = Omit<ExpenseInput, "user_name">;
 
 type Props = {
-  initialValues?: ExpenseInput;
+  initialValues?: FormValues;
   submitLabel: string;
-  onSubmit: (input: ExpenseInput) => Promise<void>;
+  onSubmit: (input: FormValues) => Promise<void>;
   onCancel?: () => void;
 };
 
@@ -18,45 +21,71 @@ export function ExpenseForm({
   onSubmit,
   onCancel,
 }: Props) {
+  const [amountText, setAmountText] = useState(
+    initialValues ? String(initialValues.amount) : "",
+  );
+  const [bonusText, setBonusText] = useState(
+    initialValues ? String(initialValues.bonus) : "",
+  );
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const bonusPercentPreview = useMemo(() => {
+    const amount = Number(amountText);
+    const bonus = Number(bonusText || 0);
+    if (!Number.isFinite(amount) || amount === 0 || !Number.isFinite(bonus)) {
+      return null;
+    }
+    return formatPercent((bonus / amount) * 100);
+  }, [amountText, bonusText]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
 
     const formData = new FormData(event.currentTarget);
-    const amount = Number(String(formData.get("amount") ?? "").trim());
+    const name = String(formData.get("name") ?? "").trim();
     const category = String(formData.get("category") ?? "").trim();
-    const description = String(formData.get("description") ?? "").trim();
+    const paymentMethod = String(formData.get("payment_method") ?? "").trim();
     const date = String(formData.get("date") ?? "").trim();
+    const amount = Number(amountText);
+    const bonus = Number(bonusText || 0);
 
-    if (!Number.isFinite(amount) || amount <= 0) {
-      setError("Enter a valid amount greater than 0.");
+    if (!name) {
+      setError("Укажите наименование расхода.");
       return;
     }
-    if (!isCategory(category)) {
-      setError("Choose a valid category.");
+    if (!category) {
+      setError("Укажите категорию.");
+      return;
+    }
+    if (!paymentMethod) {
+      setError("Укажите способ БВУ.");
+      return;
+    }
+    if (!Number.isFinite(amount) || amount === 0) {
+      setError("Укажите сумму.");
+      return;
+    }
+    if (!Number.isFinite(bonus)) {
+      setError("Некорректный бонус.");
       return;
     }
     if (Number.isNaN(new Date(date).getTime())) {
-      setError("Enter a valid date.");
+      setError("Укажите дату.");
       return;
     }
 
     setPending(true);
     try {
-      await onSubmit({
-        amount,
-        category,
-        description: description || null,
-        date,
-      });
+      await onSubmit({ name, category, payment_method: paymentMethod, date, amount, bonus });
       if (!initialValues) {
         event.currentTarget.reset();
+        setAmountText("");
+        setBonusText("");
       }
     } catch {
-      setError("Something went wrong saving this expense. Try again.");
+      setError("Не удалось сохранить расход. Попробуйте ещё раз.");
     } finally {
       setPending(false);
     }
@@ -70,58 +99,92 @@ export function ExpenseForm({
         </p>
       )}
 
+      <label className="flex flex-1 min-w-[160px] flex-col gap-1 text-sm font-medium">
+        Наименование
+        <input
+          name="name"
+          type="text"
+          maxLength={200}
+          defaultValue={initialValues?.name}
+          required
+          className="rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+        />
+      </label>
+
       <label className="flex flex-col gap-1 text-sm font-medium">
-        Amount
+        Категория
+        <input
+          name="category"
+          type="text"
+          list="category-options"
+          defaultValue={initialValues?.category}
+          required
+          className="w-44 rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+        />
+        <datalist id="category-options">
+          {CATEGORIES.map((category) => (
+            <option key={category} value={category} />
+          ))}
+        </datalist>
+      </label>
+
+      <label className="flex flex-col gap-1 text-sm font-medium">
+        Способ БВУ
+        <input
+          name="payment_method"
+          type="text"
+          list="payment-method-options"
+          defaultValue={initialValues?.payment_method}
+          required
+          className="w-36 rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+        />
+        <datalist id="payment-method-options">
+          {PAYMENT_METHODS.map((method) => (
+            <option key={method} value={method} />
+          ))}
+        </datalist>
+      </label>
+
+      <label className="flex flex-col gap-1 text-sm font-medium">
+        Дата
+        <input
+          name="date"
+          type="date"
+          defaultValue={initialValues?.date ?? toDateInputValue(new Date())}
+          required
+          className="rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+        />
+      </label>
+
+      <label className="flex flex-col gap-1 text-sm font-medium">
+        Сумма
         <input
           name="amount"
           type="number"
           step="0.01"
-          min="0.01"
-          defaultValue={initialValues?.amount}
+          value={amountText}
+          onChange={(e) => setAmountText(e.target.value)}
           required
           className="w-28 rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
         />
       </label>
 
       <label className="flex flex-col gap-1 text-sm font-medium">
-        Category
-        <select
-          name="category"
-          defaultValue={initialValues?.category ?? CATEGORIES[0]}
-          required
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-        >
-          {CATEGORIES.map((category) => (
-            <option key={category} value={category}>
-              {category}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <label className="flex flex-col gap-1 text-sm font-medium">
-        Date
+        Бонус
         <input
-          name="date"
-          type="date"
-          defaultValue={
-            initialValues?.date ?? toDateInputValue(new Date())
-          }
-          required
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+          name="bonus"
+          type="number"
+          step="0.01"
+          value={bonusText}
+          onChange={(e) => setBonusText(e.target.value)}
+          placeholder="0"
+          className="w-24 rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
         />
       </label>
 
-      <label className="flex flex-1 min-w-[160px] flex-col gap-1 text-sm font-medium">
-        Description (optional)
-        <input
-          name="description"
-          type="text"
-          maxLength={200}
-          defaultValue={initialValues?.description ?? ""}
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-        />
-      </label>
+      <div className="flex h-[38px] w-16 items-center text-sm text-slate-500 dark:text-slate-400">
+        {bonusPercentPreview ?? "—"}
+      </div>
 
       <div className="flex gap-2">
         <button
@@ -129,7 +192,7 @@ export function ExpenseForm({
           disabled={pending}
           className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
         >
-          {pending ? "Saving…" : submitLabel}
+          {pending ? "Сохранение…" : submitLabel}
         </button>
         {onCancel && (
           <button
@@ -137,7 +200,7 @@ export function ExpenseForm({
             onClick={onCancel}
             className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-900"
           >
-            Cancel
+            Отмена
           </button>
         )}
       </div>

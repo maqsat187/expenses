@@ -2,18 +2,25 @@ import { supabase } from "@/lib/supabase";
 
 export type Expense = {
   id: number;
-  amount: number;
-  category: string;
-  description: string | null;
   date: string;
+  name: string;
+  category: string;
+  payment_method: string;
+  amount: number;
+  bonus: number;
+  bonus_percent: number;
+  user_name: string | null;
   created_at: string;
 };
 
 export type ExpenseInput = {
-  amount: number;
-  category: string;
-  description: string | null;
   date: string;
+  name: string;
+  category: string;
+  payment_method: string;
+  amount: number;
+  bonus: number;
+  user_name: string | null;
 };
 
 export async function listExpenses(): Promise<Expense[]> {

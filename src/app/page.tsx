@@ -2,110 +2,90 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { listExpenses, type Expense } from "@/lib/expenses";
-import { formatCurrency } from "@/lib/format";
-import { CategoryBreakdown } from "@/components/CategoryBreakdown";
+import {
+  listExpenses,
+  createExpense,
+  updateExpense,
+  type Expense,
+  type ExpenseInput,
+} from "@/lib/expenses";
+import { useAuthGuard } from "@/lib/useAuthGuard";
+import { ExpenseForm } from "@/components/ExpenseForm";
 import { ExpenseTable } from "@/components/ExpenseTable";
 
-function currentYearMonth(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-}
-
-export default function DashboardPage() {
+export default function EntryPage() {
+  const user = useAuthGuard();
   const [expenses, setExpenses] = useState<Expense[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
 
   useEffect(() => {
+    if (!user) return;
     listExpenses()
       .then(setExpenses)
-      .catch(() => setError("Could not load expenses from Supabase."));
-  }, []);
+      .catch(() => setError("Не удалось загрузить расходы из Supabase."));
+  }, [user]);
 
-  if (error) {
-    return <p className="text-sm text-red-600 dark:text-red-400">{error}</p>;
-  }
-  if (!expenses) {
-    return (
-      <p className="text-sm text-slate-500 dark:text-slate-400">Loading…</p>
-    );
+  if (!user) {
+    return null;
   }
 
-  const yearMonth = currentYearMonth();
-  const monthExpenses = expenses.filter((e) => e.date.startsWith(yearMonth));
-  const monthTotal = monthExpenses.reduce((sum, e) => sum + e.amount, 0);
-  const allTimeTotal = expenses.reduce((sum, e) => sum + e.amount, 0);
-
-  const byCategory = new Map<string, number>();
-  for (const expense of monthExpenses) {
-    byCategory.set(
-      expense.category,
-      (byCategory.get(expense.category) ?? 0) + expense.amount,
-    );
+  async function handleCreate(input: Omit<ExpenseInput, "user_name">) {
+    await createExpense({ ...input, user_name: user });
+    setExpenses(await listExpenses());
   }
-  const categoryRows = [...byCategory.entries()]
-    .map(([category, total]) => ({ category, total }))
-    .sort((a, b) => b.total - a.total);
 
-  const recentExpenses = expenses.slice(0, 5);
-
-  const monthLabel = new Intl.DateTimeFormat("en-US", {
-    month: "long",
-    year: "numeric",
-  }).format(new Date());
+  async function handleEditSave(id: number, input: ExpenseInput) {
+    await updateExpense(id, input);
+    setExpenses(await listExpenses());
+    setEditingId(null);
+  }
 
   return (
     <div className="flex flex-col gap-10">
-      <div>
-        <h1 className="text-2xl font-semibold">Dashboard</h1>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Overview of your spending.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-800">
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            {monthLabel}
-          </p>
-          <p className="mt-1 text-2xl font-semibold">
-            {formatCurrency(monthTotal)}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold">Расходы</h1>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            Вы вошли как {user}.
           </p>
         </div>
-        <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-800">
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Expenses this month
-          </p>
-          <p className="mt-1 text-2xl font-semibold">
-            {monthExpenses.length}
-          </p>
-        </div>
-        <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-800">
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            All-time total
-          </p>
-          <p className="mt-1 text-2xl font-semibold">
-            {formatCurrency(allTimeTotal)}
-          </p>
-        </div>
+        <Link
+          href="/dashboard"
+          className="shrink-0 rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+        >
+          Дашборды
+        </Link>
       </div>
 
       <section className="flex flex-col gap-4">
-        <h2 className="text-lg font-medium">Spending by category</h2>
-        <CategoryBreakdown rows={categoryRows} />
+        <h2 className="text-lg font-medium">Добавить расход</h2>
+        <ExpenseForm submitLabel="Добавить" onSubmit={handleCreate} />
       </section>
 
       <section className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-medium">Recent expenses</h2>
-          <Link
-            href="/expenses"
-            className="text-sm text-slate-600 hover:underline dark:text-slate-400"
-          >
-            View all
-          </Link>
-        </div>
-        <ExpenseTable expenses={recentExpenses} />
+        <h2 className="text-lg font-medium">Все записи</h2>
+        {error && (
+          <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+        )}
+        {!expenses && !error && (
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Загрузка…
+          </p>
+        )}
+        {expenses && (
+          <ExpenseTable
+            expenses={expenses}
+            showActions
+            editingId={editingId}
+            onEditStart={setEditingId}
+            onEditCancel={() => setEditingId(null)}
+            onEditSave={handleEditSave}
+            onDeleted={(id) =>
+              setExpenses((prev) => prev?.filter((e) => e.id !== id) ?? prev)
+            }
+          />
+        )}
       </section>
     </div>
   );
