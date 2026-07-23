@@ -41,9 +41,15 @@ export function ExpenseForm({
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    // Capture the form element synchronously: React nulls out
+    // event.currentTarget once the synchronous dispatch phase ends, so
+    // reading it after the `await onSubmit(...)` below would throw even on
+    // a fully successful save — the .reset() call would hit a null target
+    // and land in the catch block below, misreporting success as failure.
+    const form = event.currentTarget;
     setError(null);
 
-    const formData = new FormData(event.currentTarget);
+    const formData = new FormData(form);
     const name = String(formData.get("name") ?? "").trim();
     const category = String(formData.get("category") ?? "").trim();
     const paymentMethod = String(formData.get("payment_method") ?? "").trim();
@@ -80,7 +86,7 @@ export function ExpenseForm({
     try {
       await onSubmit({ name, category, payment_method: paymentMethod, date, amount, bonus });
       if (!initialValues) {
-        event.currentTarget.reset();
+        form.reset();
         setAmountText("");
         setBonusText("");
       }

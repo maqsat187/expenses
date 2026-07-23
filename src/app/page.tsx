@@ -30,14 +30,30 @@ export default function EntryPage() {
     return null;
   }
 
+  // A failure here means the list on screen may be one row stale until the
+  // next successful refresh — not that the save itself failed, so it's
+  // deliberately not re-thrown (the form above would report it as a save
+  // error, which would be wrong: createExpense/updateExpense already
+  // succeeded by the time this runs).
+  async function refreshExpenses() {
+    try {
+      setExpenses(await listExpenses());
+      setError(null);
+    } catch {
+      setError(
+        "Расход сохранён, но не удалось обновить список. Обновите страницу.",
+      );
+    }
+  }
+
   async function handleCreate(input: Omit<ExpenseInput, "user_name">) {
     await createExpense({ ...input, user_name: user });
-    setExpenses(await listExpenses());
+    await refreshExpenses();
   }
 
   async function handleEditSave(id: number, input: ExpenseInput) {
     await updateExpense(id, input);
-    setExpenses(await listExpenses());
+    await refreshExpenses();
     setEditingId(null);
   }
 
