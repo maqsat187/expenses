@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getCurrentUser, subscribeCurrentUser, type UserName } from "@/lib/auth";
+import { useIdleLogout } from "@/lib/useIdleLogout";
 
 // Redirects to /login when nobody is signed in. Returns null while the
 // check is pending (so pages render nothing rather than a login flash) or
@@ -34,6 +35,8 @@ export function useAuthGuard(): UserName | null {
       router.replace("/login");
     }
   }, [checked, user, router]);
+
+  useIdleLogout(checked ? user : null);
 
   return checked ? user : null;
 }

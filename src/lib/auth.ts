@@ -12,6 +12,7 @@ const PINS: Record<UserName, string> = {
 };
 
 const STORAGE_KEY = "expenses:auth-user";
+const ACTIVITY_KEY = "expenses:auth-last-activity";
 
 const listeners = new Set<() => void>();
 
@@ -27,12 +28,32 @@ export function getCurrentUser(): UserName | null {
 
 export function setCurrentUser(user: UserName): void {
   window.localStorage.setItem(STORAGE_KEY, user);
+  touchActivity();
   notify();
 }
 
 export function clearCurrentUser(): void {
   window.localStorage.removeItem(STORAGE_KEY);
+  window.localStorage.removeItem(ACTIVITY_KEY);
   notify();
+}
+
+// Records "the user did something just now", in localStorage so it's shared
+// across tabs and survives reloads (used by useIdleLogout to auto sign out
+// after a stretch of inactivity).
+export function touchActivity(): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(ACTIVITY_KEY, String(Date.now()));
+}
+
+// Milliseconds since the last recorded activity. Treats "never recorded" as
+// "just now" rather than "infinitely idle", so a first-ever login can't be
+// immediately timed out.
+export function getIdleMs(): number {
+  if (typeof window === "undefined") return 0;
+  const raw = window.localStorage.getItem(ACTIVITY_KEY);
+  const last = raw ? Number(raw) : Date.now();
+  return Number.isFinite(last) ? Date.now() - last : 0;
 }
 
 // Lets useCurrentUser() (useSyncExternalStore) re-render on login/logout.
