@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   listExpenses,
   createExpense,
@@ -11,14 +11,19 @@ import {
 } from "@/lib/expenses";
 import { useAuthGuard } from "@/lib/useAuthGuard";
 import { describeError } from "@/lib/errors";
+import { formatCurrency, formatMonth } from "@/lib/format";
 import { ExpenseForm } from "@/components/ExpenseForm";
 import { ExpenseTable } from "@/components/ExpenseTable";
+
+const ALL = "all";
 
 export default function EntryPage() {
   const user = useAuthGuard();
   const [expenses, setExpenses] = useState<Expense[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [filterCategory, setFilterCategory] = useState(ALL);
+  const [filterMonth, setFilterMonth] = useState(ALL);
 
   useEffect(() => {
     if (!user) return;
@@ -28,6 +33,27 @@ export default function EntryPage() {
         setError(`Не удалось загрузить расходы из Supabase.${describeError(err)}`),
       );
   }, [user]);
+
+  const monthOptions = useMemo(() => {
+    const months = new Set((expenses ?? []).map((e) => e.date.slice(0, 7)));
+    return [...months].sort().reverse();
+  }, [expenses]);
+
+  const categoryOptions = useMemo(() => {
+    const categories = new Set((expenses ?? []).map((e) => e.category));
+    return [...categories].sort((a, b) => a.localeCompare(b, "ru"));
+  }, [expenses]);
+
+  const filteredExpenses = useMemo(() => {
+    return (expenses ?? []).filter((e) => {
+      if (filterCategory !== ALL && e.category !== filterCategory) return false;
+      if (filterMonth !== ALL && e.date.slice(0, 7) !== filterMonth) return false;
+      return true;
+    });
+  }, [expenses, filterCategory, filterMonth]);
+
+  const filteredTotal = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
+  const isFiltered = filterCategory !== ALL || filterMonth !== ALL;
 
   if (!user) {
     return null;
@@ -93,17 +119,67 @@ export default function EntryPage() {
           </p>
         )}
         {expenses && (
-          <ExpenseTable
-            expenses={expenses}
-            showActions
-            editingId={editingId}
-            onEditStart={setEditingId}
-            onEditCancel={() => setEditingId(null)}
-            onEditSave={handleEditSave}
-            onDeleted={(id) =>
-              setExpenses((prev) => prev?.filter((e) => e.id !== id) ?? prev)
-            }
-          />
+          <>
+            <div className="flex flex-wrap items-center gap-3">
+              <select
+                value={filterMonth}
+                onChange={(e) => setFilterMonth(e.target.value)}
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+              >
+                <option value={ALL}>Все месяцы</option>
+                {monthOptions.map((month) => (
+                  <option key={month} value={month}>
+                    {formatMonth(month)}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={filterCategory}
+                onChange={(e) => setFilterCategory(e.target.value)}
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+              >
+                <option value={ALL}>Все категории</option>
+                {categoryOptions.map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
+                ))}
+              </select>
+              {isFiltered && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFilterMonth(ALL);
+                    setFilterCategory(ALL);
+                  }}
+                  className="text-sm text-slate-600 hover:underline dark:text-slate-400"
+                >
+                  Сбросить фильтр
+                </button>
+              )}
+            </div>
+
+            {isFiltered && (
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Найдено записей: {filteredExpenses.length}. Сумма:{" "}
+                <span className="font-medium text-slate-700 dark:text-slate-300">
+                  {formatCurrency(filteredTotal)}
+                </span>
+              </p>
+            )}
+
+            <ExpenseTable
+              expenses={filteredExpenses}
+              showActions
+              editingId={editingId}
+              onEditStart={setEditingId}
+              onEditCancel={() => setEditingId(null)}
+              onEditSave={handleEditSave}
+              onDeleted={(id) =>
+                setExpenses((prev) => prev?.filter((e) => e.id !== id) ?? prev)
+              }
+            />
+          </>
         )}
       </section>
     </div>
