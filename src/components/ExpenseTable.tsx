@@ -1,6 +1,13 @@
 import type { Expense, ExpenseInput } from "@/lib/expenses";
-import { formatCurrency, formatDate, formatPercent } from "@/lib/format";
+import {
+  formatCompactCurrency,
+  formatCurrency,
+  formatDateShort,
+  formatMoney,
+  formatPercent,
+} from "@/lib/format";
 import { DeleteExpenseButton } from "@/components/DeleteExpenseButton";
+import { EditIcon } from "@/components/icons";
 import { ExpenseForm } from "@/components/ExpenseForm";
 
 type EditableProps = {
@@ -18,12 +25,8 @@ type ReadOnlyProps = {
 
 type Props = { expenses: Expense[] } & (EditableProps | ReadOnlyProps);
 
-// A wide table needs more room than this app's content column ever has —
-// even at its widest, the page is narrower than a table with every column
-// (№, Дата, Наименование, Категория, Способ БВУ, Сумма, Бонус, %, Кто,
-// actions) needs, so it always required horizontal scrolling to reach
-// Бонус/%, on a phone and on a full browser window alike. Cards for every
-// record instead: every field is visible without scrolling, at any width.
+const COLUMN_COUNT = 7;
+
 export function ExpenseTable(props: Props) {
   const { expenses } = props;
 
@@ -36,90 +39,117 @@ export function ExpenseTable(props: Props) {
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      {expenses.map((expense) =>
-        props.showActions && props.editingId === expense.id ? (
-          <div
-            key={expense.id}
-            className="rounded-lg border border-slate-200 p-3 dark:border-slate-800"
-          >
-            <ExpenseForm
-              submitLabel="Сохранить"
-              initialValues={{
-                name: expense.name,
-                category: expense.category,
-                payment_method: expense.payment_method,
-                amount: expense.amount,
-                bonus: expense.bonus,
-                date: expense.date,
-              }}
-              onSubmit={(input) =>
-                props.onEditSave(expense.id, {
-                  ...input,
-                  user_name: expense.user_name,
-                })
-              }
-              onCancel={props.onEditCancel}
-            />
-          </div>
-        ) : (
-          <div
-            key={expense.id}
-            className="rounded-lg border border-slate-200 p-3 dark:border-slate-800"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="font-medium">{expense.name}</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  №{expense.id} · {formatDate(expense.date)} ·{" "}
-                  {expense.category}
-                </p>
-              </div>
-              <span className="shrink-0 font-medium tabular-nums">
-                {formatCurrency(expense.amount)}
-              </span>
-            </div>
-            <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-slate-600 sm:grid-cols-4 dark:text-slate-400">
-              <div className="flex justify-between gap-2 sm:block">
-                <dt>Способ БВУ</dt>
-                <dd className="sm:font-medium sm:text-slate-800 sm:dark:text-slate-200">
-                  {expense.payment_method}
-                </dd>
-              </div>
-              <div className="flex justify-between gap-2 sm:block">
-                <dt>Кто</dt>
-                <dd className="sm:font-medium sm:text-slate-800 sm:dark:text-slate-200">
-                  {expense.user_name ?? "—"}
-                </dd>
-              </div>
-              <div className="flex justify-between gap-2 sm:block">
-                <dt>Бонус</dt>
-                <dd className="sm:font-medium sm:text-slate-800 sm:dark:text-slate-200">
-                  {expense.bonus ? formatCurrency(expense.bonus) : "—"}
-                </dd>
-              </div>
-              <div className="flex justify-between gap-2 sm:block">
-                <dt>% бонуса</dt>
-                <dd className="sm:font-medium sm:text-slate-800 sm:dark:text-slate-200">
-                  {expense.bonus ? formatPercent(expense.bonus_percent) : "—"}
-                </dd>
-              </div>
-            </dl>
+    <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800">
+      {/* table-fixed: column widths come from the header row below and
+          hold regardless of content, so truncate actually keeps the
+          columns most worth seeing without scrolling (Дата, Наименование,
+          Сумма+бонус) in the initial view before Категория/БВУ/Кто. */}
+      <table className="w-[552px] table-fixed text-left text-sm">
+        <thead className="bg-slate-50 text-slate-600 dark:bg-slate-900 dark:text-slate-400">
+          <tr>
+            <th className="w-20 px-2 py-2 font-medium">Дата</th>
+            <th className="w-28 truncate px-2 py-2 font-medium">
+              Наименование
+            </th>
+            <th className="w-20 px-2 py-2 text-right font-medium">Сумма</th>
+            <th className="w-24 truncate px-2 py-2 font-medium">Категория</th>
+            <th className="w-16 truncate px-2 py-2 font-medium">БВУ</th>
+            <th className="w-14 truncate px-2 py-2 font-medium">Кто</th>
             {props.showActions && (
-              <div className="mt-3 flex items-center gap-4 border-t border-slate-100 pt-2 dark:border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => props.onEditStart(expense.id)}
-                  className="text-sm text-slate-600 hover:underline dark:text-slate-400"
-                >
-                  Изменить
-                </button>
-                <DeleteExpenseButton id={expense.id} onDeleted={props.onDeleted} />
-              </div>
+              <th className="sticky right-0 w-16 border-l border-slate-200 bg-slate-50 px-2 py-2 dark:border-slate-800 dark:bg-slate-900" />
             )}
-          </div>
-        ),
-      )}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+          {expenses.map((expense) =>
+            props.showActions && props.editingId === expense.id ? (
+              <tr key={expense.id}>
+                <td colSpan={COLUMN_COUNT} className="px-2 py-3">
+                  <ExpenseForm
+                    submitLabel="Сохранить"
+                    initialValues={{
+                      name: expense.name,
+                      category: expense.category,
+                      payment_method: expense.payment_method,
+                      amount: expense.amount,
+                      bonus: expense.bonus,
+                      date: expense.date,
+                    }}
+                    onSubmit={(input) =>
+                      props.onEditSave(expense.id, {
+                        ...input,
+                        user_name: expense.user_name,
+                      })
+                    }
+                    onCancel={props.onEditCancel}
+                  />
+                </td>
+              </tr>
+            ) : (
+              <tr key={expense.id}>
+                <td className="truncate px-2 py-2 text-slate-500 dark:text-slate-400">
+                  {formatDateShort(expense.date)}
+                </td>
+                <td className="truncate px-2 py-2" title={expense.name}>
+                  {expense.name}
+                </td>
+                <td className="px-2 py-2 text-right">
+                  <div
+                    className="truncate font-medium"
+                    title={formatCurrency(expense.amount)}
+                  >
+                    {formatMoney(expense.amount)}
+                  </div>
+                  {expense.bonus ? (
+                    <div
+                      className="truncate text-xs text-slate-400 dark:text-slate-500"
+                      title={`Бонус: ${formatCurrency(expense.bonus)} (${formatPercent(expense.bonus_percent)})`}
+                    >
+                      +{formatCompactCurrency(expense.bonus)}
+                      <br />
+                      {formatPercent(expense.bonus_percent)}
+                    </div>
+                  ) : null}
+                </td>
+                <td
+                  className="truncate px-2 py-2 text-slate-600 dark:text-slate-400"
+                  title={expense.category}
+                >
+                  {expense.category}
+                </td>
+                <td
+                  className="truncate px-2 py-2 text-slate-600 dark:text-slate-400"
+                  title={expense.payment_method}
+                >
+                  {expense.payment_method}
+                </td>
+                <td className="truncate px-2 py-2 text-slate-600 dark:text-slate-400">
+                  {expense.user_name ?? "—"}
+                </td>
+                {props.showActions && (
+                  <td className="sticky right-0 border-l border-slate-200 bg-white px-2 py-2 dark:border-slate-800 dark:bg-slate-950">
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        type="button"
+                        onClick={() => props.onEditStart(expense.id)}
+                        title="Изменить"
+                        aria-label="Изменить запись"
+                        className="rounded p-1 text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                      >
+                        <EditIcon className="h-4 w-4" />
+                      </button>
+                      <DeleteExpenseButton
+                        id={expense.id}
+                        onDeleted={props.onDeleted}
+                      />
+                    </div>
+                  </td>
+                )}
+              </tr>
+            ),
+          )}
+        </tbody>
+      </table>
     </div>
   );
 }

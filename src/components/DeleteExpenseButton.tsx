@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { deleteExpense } from "@/lib/expenses";
 import { describeError } from "@/lib/errors";
+import { TrashIcon } from "@/components/icons";
 
 export function DeleteExpenseButton({
   id,
@@ -31,9 +32,11 @@ export function DeleteExpenseButton({
       type="button"
       disabled={pending}
       onClick={handleClick}
-      className="text-sm text-red-600 hover:underline disabled:opacity-50 dark:text-red-400"
+      title="Удалить"
+      aria-label="Удалить запись"
+      className="rounded p-1 text-red-600 hover:bg-red-50 disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-950"
     >
-      {pending ? "Удаление…" : "Удалить"}
+      <TrashIcon className="h-4 w-4" />
     </button>
   );
 }
