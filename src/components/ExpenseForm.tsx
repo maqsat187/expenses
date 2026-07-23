@@ -5,6 +5,7 @@ import { CATEGORIES } from "@/lib/categories";
 import { PAYMENT_METHODS } from "@/lib/banks";
 import { toDateInputValue } from "@/lib/format";
 import { describeError } from "@/lib/errors";
+import { evaluateExpression } from "@/lib/expr";
 import type { ExpenseInput } from "@/lib/expenses";
 
 type FormValues = Omit<ExpenseInput, "user_name">;
@@ -77,6 +78,18 @@ export function ExpenseForm({
     setPercentText(value);
     setBonusSource("percent");
     setBonusText(bonusFromPercent(Number(amountText), Number(value)));
+  }
+
+  // Lets "Сумма" be typed like a spreadsheet cell: "=1200+850-300". Commits
+  // on blur/Enter rather than live, so partial input ("=1200+") doesn't
+  // fight with the person mid-formula.
+  function commitAmountFormula() {
+    const trimmed = amountText.trim();
+    if (!trimmed.startsWith("=")) return;
+    const result = evaluateExpression(trimmed.slice(1));
+    if (result !== null) {
+      handleAmountChange(String(round2(result)));
+    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -208,12 +221,20 @@ export function ExpenseForm({
         Сумма
         <input
           name="amount"
-          type="number"
-          step="0.01"
+          type="text"
+          inputMode="text"
           value={amountText}
           onChange={(e) => handleAmountChange(e.target.value)}
+          onBlur={commitAmountFormula}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              commitAmountFormula();
+            }
+          }}
+          placeholder="1500 или =1200+850-300"
           required
-          className="w-28 rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+          className="w-36 rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
         />
       </label>
 
