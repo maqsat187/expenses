@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { CATEGORIES } from "@/lib/categories";
 import { PAYMENT_METHODS } from "@/lib/banks";
-import { formatPercent, toDateInputValue } from "@/lib/format";
+import { toDateInputValue } from "@/lib/format";
 import { describeError } from "@/lib/errors";
 import type { ExpenseInput } from "@/lib/expenses";
 
@@ -15,6 +15,24 @@ type Props = {
   onSubmit: (input: FormValues) => Promise<void>;
   onCancel?: () => void;
 };
+
+function round2(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+// bonus and its percent are two views of the same number — deriving one
+// from the amount plus whichever the person actually typed.
+function percentFromBonus(amount: number, bonus: number): string {
+  if (!Number.isFinite(amount) || amount === 0 || !Number.isFinite(bonus)) {
+    return "";
+  }
+  return String(round2((bonus / amount) * 100));
+}
+
+function bonusFromPercent(amount: number, percent: number): string {
+  if (!Number.isFinite(amount) || !Number.isFinite(percent)) return "";
+  return String(round2((amount * percent) / 100));
+}
 
 export function ExpenseForm({
   initialValues,
@@ -28,17 +46,38 @@ export function ExpenseForm({
   const [bonusText, setBonusText] = useState(
     initialValues ? String(initialValues.bonus) : "",
   );
+  const [percentText, setPercentText] = useState(() =>
+    initialValues
+      ? percentFromBonus(initialValues.amount, initialValues.bonus)
+      : "",
+  );
+  // Which of bonus/percent is the "rule" to keep applying when the amount
+  // changes afterwards — whichever the person last actually typed into.
+  const [bonusSource, setBonusSource] = useState<"bonus" | "percent">("bonus");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const bonusPercentPreview = useMemo(() => {
-    const amount = Number(amountText);
-    const bonus = Number(bonusText || 0);
-    if (!Number.isFinite(amount) || amount === 0 || !Number.isFinite(bonus)) {
-      return null;
+  function handleAmountChange(value: string) {
+    setAmountText(value);
+    const amount = Number(value);
+    if (bonusSource === "percent") {
+      setBonusText(bonusFromPercent(amount, Number(percentText)));
+    } else {
+      setPercentText(percentFromBonus(amount, Number(bonusText)));
     }
-    return formatPercent((bonus / amount) * 100);
-  }, [amountText, bonusText]);
+  }
+
+  function handleBonusChange(value: string) {
+    setBonusText(value);
+    setBonusSource("bonus");
+    setPercentText(percentFromBonus(Number(amountText), Number(value)));
+  }
+
+  function handlePercentChange(value: string) {
+    setPercentText(value);
+    setBonusSource("percent");
+    setBonusText(bonusFromPercent(Number(amountText), Number(value)));
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -90,6 +129,8 @@ export function ExpenseForm({
         form.reset();
         setAmountText("");
         setBonusText("");
+        setPercentText("");
+        setBonusSource("bonus");
       }
     } catch (err) {
       setError(`Не удалось сохранить расход. Попробуйте ещё раз.${describeError(err)}`);
@@ -170,7 +211,7 @@ export function ExpenseForm({
           type="number"
           step="0.01"
           value={amountText}
-          onChange={(e) => setAmountText(e.target.value)}
+          onChange={(e) => handleAmountChange(e.target.value)}
           required
           className="w-28 rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
         />
@@ -179,19 +220,26 @@ export function ExpenseForm({
       <label className="flex flex-col gap-1 text-sm font-medium">
         Бонус
         <input
-          name="bonus"
           type="number"
           step="0.01"
           value={bonusText}
-          onChange={(e) => setBonusText(e.target.value)}
+          onChange={(e) => handleBonusChange(e.target.value)}
           placeholder="0"
           className="w-24 rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
         />
       </label>
 
-      <div className="flex h-[38px] w-16 items-center text-sm text-slate-500 dark:text-slate-400">
-        {bonusPercentPreview ?? "—"}
-      </div>
+      <label className="flex flex-col gap-1 text-sm font-medium">
+        % бонуса
+        <input
+          type="number"
+          step="0.01"
+          value={percentText}
+          onChange={(e) => handlePercentChange(e.target.value)}
+          placeholder="0"
+          className="w-20 rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+        />
+      </label>
 
       <div className="flex gap-2">
         <button
