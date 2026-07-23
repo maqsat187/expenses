@@ -10,6 +10,7 @@ import {
   type ExpenseInput,
 } from "@/lib/expenses";
 import { useAuthGuard } from "@/lib/useAuthGuard";
+import { describeError } from "@/lib/errors";
 import { ExpenseForm } from "@/components/ExpenseForm";
 import { ExpenseTable } from "@/components/ExpenseTable";
 
@@ -23,7 +24,9 @@ export default function EntryPage() {
     if (!user) return;
     listExpenses()
       .then(setExpenses)
-      .catch(() => setError("Не удалось загрузить расходы из Supabase."));
+      .catch((err) =>
+        setError(`Не удалось загрузить расходы из Supabase.${describeError(err)}`),
+      );
   }, [user]);
 
   if (!user) {
@@ -39,9 +42,9 @@ export default function EntryPage() {
     try {
       setExpenses(await listExpenses());
       setError(null);
-    } catch {
+    } catch (err) {
       setError(
-        "Расход сохранён, но не удалось обновить список. Обновите страницу.",
+        `Расход сохранён, но не удалось обновить список. Обновите страницу.${describeError(err)}`,
       );
     }
   }

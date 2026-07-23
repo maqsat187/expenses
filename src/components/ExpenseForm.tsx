@@ -4,6 +4,7 @@ import { useMemo, useState, type FormEvent } from "react";
 import { CATEGORIES } from "@/lib/categories";
 import { PAYMENT_METHODS } from "@/lib/banks";
 import { formatPercent, toDateInputValue } from "@/lib/format";
+import { describeError } from "@/lib/errors";
 import type { ExpenseInput } from "@/lib/expenses";
 
 type FormValues = Omit<ExpenseInput, "user_name">;
@@ -90,8 +91,8 @@ export function ExpenseForm({
         setAmountText("");
         setBonusText("");
       }
-    } catch {
-      setError("Не удалось сохранить расход. Попробуйте ещё раз.");
+    } catch (err) {
+      setError(`Не удалось сохранить расход. Попробуйте ещё раз.${describeError(err)}`);
     } finally {
       setPending(false);
     }

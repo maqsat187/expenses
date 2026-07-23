@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { deleteExpense } from "@/lib/expenses";
+import { describeError } from "@/lib/errors";
 
 export function DeleteExpenseButton({
   id,
@@ -18,8 +19,8 @@ export function DeleteExpenseButton({
     try {
       await deleteExpense(id);
       onDeleted(id);
-    } catch {
-      alert("Не удалось удалить запись. Попробуйте ещё раз.");
+    } catch (err) {
+      alert(`Не удалось удалить запись. Попробуйте ещё раз.${describeError(err)}`);
     } finally {
       setPending(false);
     }

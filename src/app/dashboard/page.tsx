@@ -20,6 +20,7 @@ import {
   sumBonus,
   type Period,
 } from "@/lib/analytics";
+import { describeError } from "@/lib/errors";
 import { StatTile } from "@/components/StatTile";
 import { BarList } from "@/components/charts/BarList";
 import { MonthlyColumns } from "@/components/charts/MonthlyColumns";
@@ -41,7 +42,9 @@ export default function DashboardPage() {
     if (!user) return;
     listExpenses()
       .then(setExpenses)
-      .catch(() => setError("Не удалось загрузить расходы из Supabase."));
+      .catch((err) =>
+        setError(`Не удалось загрузить расходы из Supabase.${describeError(err)}`),
+      );
   }, [user]);
 
   const scoped = useMemo(
