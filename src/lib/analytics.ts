@@ -56,21 +56,23 @@ export function foldTail(
 
 export type MonthlyValue = { month: string; value: number };
 
-// Fixed window of `months` consecutive calendar months ending this month,
-// regardless of gaps in the data — a month with no expenses still gets its
-// own zero-value slot instead of being skipped (which would otherwise let
-// sparse data quietly stretch the window further back than "last N months").
+// Fixed window of `months` consecutive, fully-completed calendar months —
+// the current (still in progress) month is deliberately excluded, so a
+// mostly-empty partial month never shows up next to complete ones. A month
+// with no expenses still gets its own zero-value slot instead of being
+// skipped (which would otherwise let sparse data quietly stretch the
+// window further back than "last N months").
 function lastMonthKeys(months: number): string[] {
   const now = new Date();
   const keys: string[] = [];
-  for (let i = months - 1; i >= 0; i--) {
+  for (let i = months; i >= 1; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     keys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
   }
   return keys;
 }
 
-export function monthlyTotals(expenses: Expense[], months = 12): MonthlyValue[] {
+export function monthlyTotals(expenses: Expense[], months = 10): MonthlyValue[] {
   const totals = new Map<string, number>();
   for (const expense of expenses) {
     const key = expense.date.slice(0, 7);
@@ -85,7 +87,7 @@ export function monthlyTotals(expenses: Expense[], months = 12): MonthlyValue[] 
 export function monthlyTotalsForCategory(
   expenses: Expense[],
   category: string,
-  months = 12,
+  months = 10,
 ): MonthlyValue[] {
   return monthlyTotals(
     expenses.filter((e) => e.category === category),

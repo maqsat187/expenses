@@ -56,19 +56,21 @@ export default function DashboardPage() {
   const bonusTotal = sumBonus(scoped);
   const avgBonusPercent = total !== 0 ? (bonusTotal / total) * 100 : 0;
 
-  const byCategory = foldTail(groupSum(scoped, (e) => e.category));
+  const byCategory = groupSum(scoped, (e) => e.category).sort(
+    (a, b) => b.value - a.value,
+  );
   const byBank = foldTail(groupSum(scoped, (e) => e.payment_method));
   const bonusByBank = foldTail(
     groupSum(scoped, (e) => e.payment_method, (e) => e.bonus),
   );
-  const trend = monthlyTotals(expenses ?? [], 12);
+  const trend = monthlyTotals(expenses ?? [], 10);
 
   const categoryOptions = groupSum(expenses ?? [], (e) => e.category)
     .sort((a, b) => b.value - a.value)
     .map((c) => c.label);
   const activeCategory = selectedCategory ?? categoryOptions[0] ?? null;
   const categoryTrend = activeCategory
-    ? monthlyTotalsForCategory(expenses ?? [], activeCategory, 12)
+    ? monthlyTotalsForCategory(expenses ?? [], activeCategory, 10)
     : [];
   const categoryTrendTotal = categoryTrend.reduce((sum, m) => sum + m.value, 0);
 
@@ -157,7 +159,7 @@ export default function DashboardPage() {
 
           <section className="flex flex-col gap-4">
             <h2 className="text-lg font-medium">
-              По месяцам (последние 12)
+              По месяцам (последние 10 полных)
             </h2>
             <MonthlyColumns items={trend} formatValue={formatCompactCurrency} />
           </section>
@@ -182,7 +184,7 @@ export default function DashboardPage() {
             {activeCategory ? (
               <>
                 <p className="text-sm text-slate-500 dark:text-slate-400">
-                  Итого за 12 мес.:{" "}
+                  Итого за 10 мес.:{" "}
                   <span className="font-medium text-slate-700 dark:text-slate-300">
                     {formatCurrency(categoryTrendTotal)}
                   </span>
