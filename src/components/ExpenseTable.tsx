@@ -43,12 +43,17 @@ export function ExpenseTable(props: Props) {
       {/* table-fixed: column widths come from the header row below and
           hold regardless of content, so truncate actually keeps the
           columns most worth seeing without scrolling (Дата, Наименование,
-          Сумма+бонус) in the initial view before Категория/БВУ/Кто. */}
-      <table className="w-[552px] table-fixed text-left text-sm">
+          Сумма+бонус) in the initial view before Категория/БВУ/Кто. Below
+          sm the table holds to a phone-width budget; from sm up it fills
+          the available width and hands all of the slack to Наименование
+          (the only column left without a fixed width), since a laptop
+          window has room to spare and truncating descriptions there was
+          just wasting it. */}
+      <table className="w-[552px] table-fixed text-left text-sm sm:w-full">
         <thead className="bg-slate-50 text-slate-600 dark:bg-slate-900 dark:text-slate-400">
           <tr>
             <th className="w-20 px-2 py-2 font-medium">Дата</th>
-            <th className="w-28 truncate px-2 py-2 font-medium">
+            <th className="w-28 truncate px-2 py-2 font-medium sm:w-auto">
               Наименование
             </th>
             <th className="w-20 px-2 py-2 text-right font-medium">Сумма</th>
