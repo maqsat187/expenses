@@ -57,8 +57,12 @@ export function ExpenseTable(props: Props) {
               Наименование
             </th>
             <th className="w-20 px-2 py-2 text-right font-medium">Сумма</th>
-            <th className="w-24 truncate px-2 py-2 font-medium">Категория</th>
-            <th className="w-16 truncate px-2 py-2 font-medium">БВУ</th>
+            <th className="w-24 truncate px-2 py-2 font-medium sm:w-36">
+              Категория
+            </th>
+            <th className="w-16 truncate px-2 py-2 font-medium sm:w-24">
+              БВУ
+            </th>
             <th className="w-14 truncate px-2 py-2 font-medium">Кто</th>
             {props.showActions && (
               <th className="sticky right-0 w-16 border-l border-slate-200 bg-slate-50 px-2 py-2 dark:border-slate-800 dark:bg-slate-900" />
