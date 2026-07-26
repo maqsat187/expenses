@@ -11,7 +11,7 @@ import {
 } from "@/lib/expenses";
 import { useAuthGuard } from "@/lib/useAuthGuard";
 import { describeError } from "@/lib/errors";
-import { formatCurrency, formatMonth } from "@/lib/format";
+import { formatCurrency, formatMonth, formatPercent } from "@/lib/format";
 import { ExpenseForm } from "@/components/ExpenseForm";
 import { ExpenseTable } from "@/components/ExpenseTable";
 
@@ -53,6 +53,12 @@ export default function EntryPage() {
   }, [expenses, filterCategory, filterMonth]);
 
   const filteredTotal = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
+  const filteredBonusTotal = filteredExpenses.reduce(
+    (sum, e) => sum + e.bonus,
+    0,
+  );
+  const filteredAvgBonusPercent =
+    filteredTotal !== 0 ? (filteredBonusTotal / filteredTotal) * 100 : 0;
   const isFiltered = filterCategory !== ALL || filterMonth !== ALL;
 
   if (!user) {
@@ -165,6 +171,15 @@ export default function EntryPage() {
                 <span className="font-medium text-slate-700 dark:text-slate-300">
                   {formatCurrency(filteredTotal)}
                 </span>
+                . Бонусов:{" "}
+                <span className="font-medium text-slate-700 dark:text-slate-300">
+                  {formatCurrency(filteredBonusTotal)}
+                </span>{" "}
+                (
+                <span className="font-medium text-slate-700 dark:text-slate-300">
+                  {formatPercent(filteredAvgBonusPercent)}
+                </span>{" "}
+                в среднем)
               </p>
             )}
 
