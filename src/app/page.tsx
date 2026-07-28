@@ -14,16 +14,17 @@ import { describeError } from "@/lib/errors";
 import { formatCurrency, formatMonth, formatPercent } from "@/lib/format";
 import { ExpenseForm } from "@/components/ExpenseForm";
 import { ExpenseTable } from "@/components/ExpenseTable";
-
-const ALL = "all";
+import { MultiSelectFilter } from "@/components/MultiSelectFilter";
 
 export default function EntryPage() {
   const user = useAuthGuard();
   const [expenses, setExpenses] = useState<Expense[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [filterCategory, setFilterCategory] = useState(ALL);
-  const [filterMonth, setFilterMonth] = useState(ALL);
+  const [filterCategories, setFilterCategories] = useState<Set<string>>(
+    new Set(),
+  );
+  const [filterMonths, setFilterMonths] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!user) return;
@@ -36,21 +37,28 @@ export default function EntryPage() {
 
   const monthOptions = useMemo(() => {
     const months = new Set((expenses ?? []).map((e) => e.date.slice(0, 7)));
-    return [...months].sort().reverse();
+    return [...months]
+      .sort()
+      .reverse()
+      .map((month) => ({ value: month, label: formatMonth(month) }));
   }, [expenses]);
 
   const categoryOptions = useMemo(() => {
     const categories = new Set((expenses ?? []).map((e) => e.category));
-    return [...categories].sort((a, b) => a.localeCompare(b, "ru"));
+    return [...categories]
+      .sort((a, b) => a.localeCompare(b, "ru"))
+      .map((category) => ({ value: category, label: category }));
   }, [expenses]);
 
   const filteredExpenses = useMemo(() => {
     return (expenses ?? []).filter((e) => {
-      if (filterCategory !== ALL && e.category !== filterCategory) return false;
-      if (filterMonth !== ALL && e.date.slice(0, 7) !== filterMonth) return false;
+      if (filterCategories.size > 0 && !filterCategories.has(e.category))
+        return false;
+      if (filterMonths.size > 0 && !filterMonths.has(e.date.slice(0, 7)))
+        return false;
       return true;
     });
-  }, [expenses, filterCategory, filterMonth]);
+  }, [expenses, filterCategories, filterMonths]);
 
   const filteredTotal = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
   const filteredBonusTotal = filteredExpenses.reduce(
@@ -59,7 +67,7 @@ export default function EntryPage() {
   );
   const filteredAvgBonusPercent =
     filteredTotal !== 0 ? (filteredBonusTotal / filteredTotal) * 100 : 0;
-  const isFiltered = filterCategory !== ALL || filterMonth !== ALL;
+  const isFiltered = filterCategories.size > 0 || filterMonths.size > 0;
 
   if (!user) {
     return null;
@@ -127,36 +135,26 @@ export default function EntryPage() {
         {expenses && (
           <>
             <div className="flex flex-wrap items-center gap-3">
-              <select
-                value={filterMonth}
-                onChange={(e) => setFilterMonth(e.target.value)}
-                className="rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-              >
-                <option value={ALL}>Все месяцы</option>
-                {monthOptions.map((month) => (
-                  <option key={month} value={month}>
-                    {formatMonth(month)}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={filterCategory}
-                onChange={(e) => setFilterCategory(e.target.value)}
-                className="rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-              >
-                <option value={ALL}>Все категории</option>
-                {categoryOptions.map((category) => (
-                  <option key={category} value={category}>
-                    {category}
-                  </option>
-                ))}
-              </select>
+              <MultiSelectFilter
+                label="Месяцы"
+                placeholder="Все месяцы"
+                options={monthOptions}
+                selected={filterMonths}
+                onChange={setFilterMonths}
+              />
+              <MultiSelectFilter
+                label="Категории"
+                placeholder="Все категории"
+                options={categoryOptions}
+                selected={filterCategories}
+                onChange={setFilterCategories}
+              />
               {isFiltered && (
                 <button
                   type="button"
                   onClick={() => {
-                    setFilterMonth(ALL);
-                    setFilterCategory(ALL);
+                    setFilterMonths(new Set());
+                    setFilterCategories(new Set());
                   }}
                   className="text-sm text-slate-600 hover:underline dark:text-slate-400"
                 >
