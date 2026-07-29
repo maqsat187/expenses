@@ -197,40 +197,46 @@ async function fetchKaseAverage() {
 
 // --- National Bank of Kazakhstan: price of 1 gram of gold -----------------
 // The page's markup isn't documented, so rather than depend on a selector
-// that may not exist, this locates the freshest date on the page and takes
-// the first plausible tenge figure near it. matchedContext is kept in the
-// output so a wrong match is visible and diagnosable rather than silent.
+// that may not exist, this looks for a plausible tenge figure near a date.
+// matchedContext is kept in the output so a wrong match is visible and
+// diagnosable rather than silent.
 const GOLD_KZT_MIN = 5_000;
 const GOLD_KZT_MAX = 500_000;
+const DATE_LOOKBACK_DAYS = 7;
+
+function shiftIsoDate(isoDate, days) {
+  const d = new Date(`${isoDate}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
 
 async function fetchNbkGold() {
   const response = await request("https://nationalbank.kz/ru/gold/zoloto");
   const text = toPlainText(await response.text());
 
-  const dateMatches = [...text.matchAll(/\b(\d{2})\.(\d{2})\.(\d{4})\b/g)];
-  let best = null;
-
-  for (const match of dateMatches) {
-    const [, day, month, year] = match;
-    const timestamp = Date.parse(`${year}-${month}-${day}T00:00:00Z`);
-    if (!Number.isFinite(timestamp)) continue;
-    // Ignore future dates; a page listing them would otherwise win on
-    // recency and hand back a figure that isn't today's.
-    if (timestamp > Date.now() + 86_400_000) continue;
-    if (!best || timestamp > best.timestamp) {
-      best = { timestamp, index: match.index, date: `${day}.${month}.${year}` };
-    }
-  }
-
-  if (best) {
-    const after = text.slice(best.index + best.date.length);
+  // Deliberately does NOT pick "the most recent date found anywhere on the
+  // page" — a live run against the real site did exactly that and anchored
+  // on "01.02.2016" from an archive-links section, not the actual price
+  // date (the price value next to it happened to still be right, by
+  // coincidence — the date label was not). Probing backward for an *exact*
+  // match on today's date, then yesterday's, etc., can't be fooled by
+  // unrelated historical dates elsewhere on the page: an archive link would
+  // have to happen to name one of the last few real days, which archives by
+  // definition don't.
+  const todayAlmaty = almatyDateString();
+  for (let back = 0; back <= DATE_LOOKBACK_DAYS; back++) {
+    const [y, m, d] = shiftIsoDate(todayAlmaty, -back).split("-");
+    const ddmmyyyy = `${d}.${m}.${y}`;
+    const index = text.indexOf(ddmmyyyy);
+    if (index === -1) continue;
+    const after = text.slice(index + ddmmyyyy.length);
     const [hit] = parseNumbers(after, GOLD_KZT_MIN, GOLD_KZT_MAX);
     if (hit) {
       return {
         pricePerGram: hit.value,
-        date: best.date,
+        date: ddmmyyyy,
         strategy: "date-anchored",
-        matchedContext: contextAround(text, best.index, best.date.length),
+        matchedContext: contextAround(text, index, ddmmyyyy.length),
       };
     }
   }
