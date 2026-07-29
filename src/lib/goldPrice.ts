@@ -46,14 +46,3 @@ export async function fetchGoldApiSpot(): Promise<SpotPriceResult> {
     return { status: "error", source, sourceUrl, message: describeFetchError(err) };
   }
 }
-
-// Troy ounce, the unit gold spot prices are quoted in.
-export const TROY_OUNCE_GRAMS = 31.1034768;
-
-export function goldPriceForGrams(
-  spotUsdPerOz: number,
-  usdKztRate: number,
-  grams: number,
-): number {
-  return (spotUsdPerOz / TROY_OUNCE_GRAMS) * usdKztRate * grams;
-}

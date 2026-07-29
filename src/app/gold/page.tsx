@@ -3,12 +3,9 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useAuthGuard } from "@/lib/useAuthGuard";
-import {
-  fetchGoldApiSpot,
-  goldPriceForGrams,
-  type SpotPriceResult,
-} from "@/lib/goldPrice";
-import { fetchNbkUsdKztRate, type NbkRateResult } from "@/lib/nbkRate";
+import { fetchGoldApiSpot, type SpotPriceResult } from "@/lib/goldPrice";
+import { fetchKaseUsdKztAverage, type KaseAverageResult } from "@/lib/kaseRate";
+import { fetchNbkGoldPricePerGram, type NbkGoldResult } from "@/lib/nbkGold";
 import { formatMoney } from "@/lib/format";
 
 const GRAM_AMOUNTS = [1, 1.555];
@@ -17,7 +14,8 @@ export default function GoldCoinPage() {
   const user = useAuthGuard();
   const [loading, setLoading] = useState(false);
   const [spotResult, setSpotResult] = useState<SpotPriceResult | null>(null);
-  const [nbkResult, setNbkResult] = useState<NbkRateResult | null>(null);
+  const [kaseResult, setKaseResult] = useState<KaseAverageResult | null>(null);
+  const [nbkGoldResult, setNbkGoldResult] = useState<NbkGoldResult | null>(null);
 
   if (!user) {
     return null;
@@ -42,13 +40,16 @@ export default function GoldCoinPage() {
   async function handleForecastClick() {
     setLoading(true);
     setSpotResult(null);
-    setNbkResult(null);
-    const [spot, nbk] = await Promise.all([
+    setKaseResult(null);
+    setNbkGoldResult(null);
+    const [spot, kase, nbkGold] = await Promise.all([
       fetchGoldApiSpot(),
-      fetchNbkUsdKztRate(),
+      fetchKaseUsdKztAverage(),
+      fetchNbkGoldPricePerGram(),
     ]);
     setSpotResult(spot);
-    setNbkResult(nbk);
+    setKaseResult(kase);
+    setNbkGoldResult(nbkGold);
     setLoading(false);
   }
 
@@ -92,26 +93,31 @@ export default function GoldCoinPage() {
         </section>
       )}
 
-      {nbkResult && (
+      {kaseResult && (
         <section className="flex flex-col gap-3">
-          <h2 className="text-lg font-medium">Курс USD/KZT (Нацбанк РК)</h2>
-          <NbkRow result={nbkResult} />
+          <h2 className="text-lg font-medium">
+            USD/KZT — средневзвешенная цена (KASE, USDKZT_TOM)
+          </h2>
+          <KaseRow result={kaseResult} />
         </section>
       )}
 
-      {(spotResult || nbkResult) && (
+      {nbkGoldResult && (
         <section className="flex flex-col gap-3">
-          <h2 className="text-lg font-medium">Цена золота в тенге</h2>
+          <h2 className="text-lg font-medium">Цена золота в тенге (Нацбанк РК)</h2>
           <div className="flex flex-col gap-2">
             {GRAM_AMOUNTS.map((grams) => (
-              <GramRow
-                key={grams}
-                grams={grams}
-                spotResult={spotResult}
-                nbkResult={nbkResult}
-              />
+              <NbkGoldRow key={grams} grams={grams} result={nbkGoldResult} />
             ))}
           </div>
+          <a
+            href="https://nationalbank.kz/ru/gold/zoloto"
+            target="_blank"
+            rel="noreferrer"
+            className="text-sm text-slate-600 hover:underline dark:text-slate-400"
+          >
+            Открыть nationalbank.kz для проверки вручную →
+          </a>
         </section>
       )}
     </div>
@@ -145,24 +151,31 @@ function SpotRow({ result }: { result: SpotPriceResult }) {
   );
 }
 
-function NbkRow({ result }: { result: NbkRateResult }) {
+function KaseRow({ result }: { result: KaseAverageResult }) {
   return (
     <div className="rounded-md border border-slate-200 p-3 text-sm dark:border-slate-800">
       <div className="flex items-center justify-between gap-3">
         <a
-          href="https://nationalbank.kz/ru/exchangerates/ezhednevnye-oficialnye-rynochnye-kursy-valyut"
+          href="https://kase.kz/ru/account/trades"
           target="_blank"
           rel="noreferrer"
           className="font-medium hover:underline"
         >
-          Нацбанк РК
+          KASE
         </a>
         {result.status === "ok" ? (
-          <span className="font-semibold">{result.rate.toFixed(2)} ₸</span>
+          <span className="font-semibold">
+            {result.averagePrice.toFixed(2)} ₸
+          </span>
         ) : (
           <span className="text-red-600 dark:text-red-400">Ошибка</span>
         )}
       </div>
+      {result.status === "ok" && !result.isRealtime && (
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          Данные с задержкой (анонимный доступ без входа в аккаунт).
+        </p>
+      )}
       {result.status === "error" && (
         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
           {result.message}
@@ -172,35 +185,29 @@ function NbkRow({ result }: { result: NbkRateResult }) {
   );
 }
 
-function GramRow({
+function NbkGoldRow({
   grams,
-  spotResult,
-  nbkResult,
+  result,
 }: {
   grams: number;
-  spotResult: SpotPriceResult | null;
-  nbkResult: NbkRateResult | null;
+  result: NbkGoldResult;
 }) {
   const label = `${grams.toString().replace(".", ",")} г`;
-  const canCompute = spotResult?.status === "ok" && nbkResult?.status === "ok";
-
   return (
     <div className="rounded-md border border-slate-200 p-3 text-sm dark:border-slate-800">
       <div className="flex items-center justify-between gap-3">
         <span className="font-medium">{label}</span>
-        {canCompute ? (
+        {result.status === "ok" ? (
           <span className="font-semibold">
-            {formatMoney(
-              goldPriceForGrams(spotResult.price, nbkResult.rate, grams),
-            )}
+            {formatMoney(result.pricePerGram * grams)}
           </span>
         ) : (
           <span className="text-red-600 dark:text-red-400">Недоступно</span>
         )}
       </div>
-      {!canCompute && (
+      {result.status === "error" && (
         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          Нужны обе цифры выше — цена золота и курс Нацбанка.
+          {result.message}
         </p>
       )}
     </div>
