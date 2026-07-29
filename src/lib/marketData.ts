@@ -22,6 +22,10 @@ export type MarketData = {
     date: string | null;
     strategy: string;
     matchedContext: string;
+    // Several recent days parsed from the National Bank's own page in the
+    // same fetch, oldest first. Empty when the page's table wasn't found
+    // (the "first plausible number" fallback strategy has no history).
+    history: { date: string; pricePerGram: number }[];
   }>;
   // Present only when all three sources loaded: compares the National
   // Bank's published gram price against the same figure derived from spot
@@ -48,7 +52,7 @@ export async function fetchMarketData(): Promise<MarketDataResult> {
     });
     if (response.status === 404) {
       throw new Error(
-        "Файл с данными ещё не собран. Он создаётся при деплое — запустите workflow или дождитесь ближайшего запуска по расписанию.",
+        "Файл с данными ещё не собран. Он создаётся при деплое — сделайте пуш в main или запустите workflow вручную.",
       );
     }
     if (!response.ok) {

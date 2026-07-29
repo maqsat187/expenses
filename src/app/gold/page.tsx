@@ -3,13 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { fetchMarketData, formatSnapshotTime, type MarketDataResult } from "@/lib/marketData";
-import {
-  fetchGoldHistory,
-  buildDailyGoldCoinSeries,
-  nextBusinessDayIso,
-  almatyNow,
-  type GoldHistoryResult,
-} from "@/lib/goldHistory";
+import { buildDailyGoldCoinSeries, nextBusinessDayIso, almatyNow } from "@/lib/goldHistory";
 import {
   formatMoney,
   formatSignedMoney,
@@ -29,23 +23,17 @@ function changeColorClass(value: number | null): string {
 export default function GoldCoinPage() {
   const [loading, setLoading] = useState(false);
   const [market, setMarket] = useState<MarketDataResult | null>(null);
-  const [history, setHistory] = useState<GoldHistoryResult | null>(null);
 
   async function handleForecastClick() {
     setLoading(true);
     setMarket(null);
-    setHistory(null);
-    const [marketResult, historyResult] = await Promise.all([
-      fetchMarketData(),
-      fetchGoldHistory(),
-    ]);
-    setMarket(marketResult);
-    setHistory(historyResult);
+    setMarket(await fetchMarketData());
     setLoading(false);
   }
 
   const snapshot = market?.status === "ok" ? market.data : null;
-  const series = history?.status === "ok" ? buildDailyGoldCoinSeries(history.entries) : null;
+  const nbkOk = snapshot && snapshot.nbkGold.status === "ok" ? snapshot.nbkGold : null;
+  const series = nbkOk ? buildDailyGoldCoinSeries(nbkOk.history) : null;
   const recentSeries = series ? series.slice(-HISTORY_DAYS_SHOWN) : null;
   const latest = series && series.length > 0 ? series[series.length - 1] : null;
 
@@ -93,7 +81,7 @@ export default function GoldCoinPage() {
         <p className="text-sm text-red-600 dark:text-red-400">{market.message}</p>
       )}
 
-      {series && (
+      {market && (
         <section className="flex flex-col gap-3">
           <h2 className="text-lg font-medium">
             История цены Gold Coin (1,555 г) — последние {HISTORY_DAYS_SHOWN} рабочих дней
@@ -127,16 +115,15 @@ export default function GoldCoinPage() {
             </div>
           ) : (
             <p className="text-sm text-red-600 dark:text-red-400">
-              Пока нет накопленной истории — она собирается по расписанию, зайдите позже.
+              {snapshot?.nbkGold.status === "error"
+                ? snapshot.nbkGold.message
+                : "На странице Нацбанка не нашли таблицу истории в этот раз — доступна только текущая цена (ниже, в исходных данных)."}
             </p>
           )}
         </section>
       )}
-      {history?.status === "error" && (
-        <p className="text-sm text-red-600 dark:text-red-400">{history.message}</p>
-      )}
 
-      {(market || history) && (
+      {market && (
         <section className="rounded-lg border-2 border-slate-300 p-5 dark:border-slate-700">
           <h2 className="text-lg font-medium">
             Прогноз на {formatDateWithWeekday(nextBusinessDate)}

@@ -1,42 +1,15 @@
-// Reads public/gold-history.json — daily National Bank gram prices,
-// accumulated across deploy-workflow runs (see scripts/fetch-market-data.mjs
-// and .github/workflows/deploy.yml). Same-origin fetch, same reasoning as
-// marketData.ts: no browser CORS request happens at runtime at all.
-export type GoldHistoryEntry = { date: string; nbkPricePerGram: number };
-
-export type GoldHistoryResult =
-  | { status: "ok"; entries: GoldHistoryEntry[] }
-  | { status: "error"; message: string };
-
-const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
-
-export async function fetchGoldHistory(): Promise<GoldHistoryResult> {
-  try {
-    const response = await fetch(`${BASE_PATH}/gold-history.json`, {
-      cache: "no-store",
-    });
-    if (response.status === 404) {
-      throw new Error(
-        "Файл истории ещё не создан. Он появляется после первого запуска деплоя.",
-      );
-    }
-    if (!response.ok) {
-      throw new Error(`Не удалось загрузить историю: HTTP ${response.status}`);
-    }
-    const data = (await response.json()) as { entries?: GoldHistoryEntry[] };
-    return { status: "ok", entries: data.entries ?? [] };
-  } catch (err) {
-    return {
-      status: "error",
-      message: err instanceof Error ? err.message : "Неизвестная ошибка",
-    };
-  }
-}
+// Pure helpers for the gold price history/forecast shown on the Gold Coin
+// page. The history data itself is embedded in market-data.json's
+// nbkGold.history (see scripts/fetch-market-data.mjs and marketData.ts) —
+// the National Bank's own page publishes several recent days in one table,
+// so a single fetch captures full history; nothing here fetches on its own.
 
 // "Gold Coin" here means 1/20 troy ounce (≈1.555 g) — the weight the
-// forecast formula below is built around (spot ÷ 20).
+// forecast formula on the page is built around (spot ÷ 20).
 export const TROY_OUNCE_GRAMS = 31.1034768;
 export const GOLD_COIN_GRAMS = TROY_OUNCE_GRAMS / 20;
+
+export type GoldHistoryEntry = { date: string; pricePerGram: number };
 
 export type DailyGoldCoinPoint = {
   date: string;
@@ -53,12 +26,12 @@ export function buildDailyGoldCoinSeries(
 ): DailyGoldCoinPoint[] {
   const sorted = [...entries].sort((a, b) => a.date.localeCompare(b.date));
   return sorted.map((entry, i) => {
-    const goldCoinPrice = entry.nbkPricePerGram * GOLD_COIN_GRAMS;
+    const goldCoinPrice = entry.pricePerGram * GOLD_COIN_GRAMS;
     const prev = i > 0 ? sorted[i - 1] : null;
     if (!prev) {
       return { date: entry.date, goldCoinPrice, changeAmount: null, changePercent: null };
     }
-    const prevPrice = prev.nbkPricePerGram * GOLD_COIN_GRAMS;
+    const prevPrice = prev.pricePerGram * GOLD_COIN_GRAMS;
     const changeAmount = goldCoinPrice - prevPrice;
     return {
       date: entry.date,

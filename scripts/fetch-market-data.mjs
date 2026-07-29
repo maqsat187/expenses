@@ -12,7 +12,7 @@
 // Every source is independent: one failing never aborts the others or the
 // build. Failures are recorded in the JSON with their reason so the page
 // can show what went wrong instead of silently rendering nothing.
-import { writeFile, mkdir, readFile } from "node:fs/promises";
+import { writeFile, mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -20,50 +20,6 @@ const OUT_PATH = resolve(
   dirname(fileURLToPath(import.meta.url)),
   "../public/market-data.json",
 );
-// Unlike market-data.json (gitignored, rebuilt fresh every run), this file
-// is committed back to the repo by the workflow so daily prices accumulate
-// across runs instead of only ever holding the latest one.
-const HISTORY_PATH = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  "../public/gold-history.json",
-);
-const HISTORY_KEEP_DAYS = 40; // comfortably more than the 5 the page shows
-
-// Kazakhstan is UTC+5 year-round (no DST), so "today" for history purposes
-// is computed from that offset rather than the runner's UTC clock.
-function almatyDateString(date = new Date()) {
-  const shifted = new Date(date.getTime() + 5 * 60 * 60 * 1000);
-  return shifted.toISOString().slice(0, 10);
-}
-
-function isWeekday(isoDate) {
-  const day = new Date(`${isoDate}T00:00:00Z`).getUTCDay();
-  return day >= 1 && day <= 5;
-}
-
-async function updateGoldHistory(nbkGold) {
-  let history = { entries: [] };
-  try {
-    history = JSON.parse(await readFile(HISTORY_PATH, "utf8"));
-    if (!Array.isArray(history.entries)) history = { entries: [] };
-  } catch {
-    // No history yet (first run) — start fresh.
-  }
-
-  const today = almatyDateString();
-  if (nbkGold.status === "ok" && isWeekday(today)) {
-    // Replace, not append: this runs on every push and every manual
-    // workflow_dispatch, so a second run the same day should update today's
-    // entry rather than duplicate it.
-    const withoutToday = history.entries.filter((e) => e.date !== today);
-    withoutToday.push({ date: today, nbkPricePerGram: nbkGold.pricePerGram });
-    withoutToday.sort((a, b) => a.date.localeCompare(b.date));
-    history.entries = withoutToday.slice(-HISTORY_KEEP_DAYS);
-  }
-
-  await writeFile(HISTORY_PATH, `${JSON.stringify(history, null, 2)}\n`);
-  return history;
-}
 
 // Some of these sites reject requests without a browser-like User-Agent.
 const UA =
@@ -100,19 +56,20 @@ function toPlainText(html) {
     .trim();
 }
 
+// Matches a Russian-formatted tenge figure: thousands-grouped ("61 889,33",
+// the real site's format) or a plain contiguous run ("61889,33") as a
+// fallback in case the grouping ever changes. An earlier version made the
+// separator optional in a single pattern, which was ambiguous — greedy
+// \d{1,3} could eat into a plain run before a grouped match got a chance,
+// silently dropping ungrouped numbers instead of matching them.
+const PRICE_PATTERN_SOURCE =
+  "\\d{1,3}(?:[\\s\\u00a0\\u202f]\\d{3})+(?:[.,]\\d{1,2})?|\\d{4,6}(?:[.,]\\d{1,2})?";
+
 function parseNumbers(text, min, max) {
   const found = [];
-  // Two alternatives, tried in order: thousands-grouped ("61 889,33", the
-  // real site's format) first, then a plain contiguous run ("61889,33") as
-  // a fallback in case the grouping ever changes. An earlier version made
-  // the separator optional in a single pattern, which was ambiguous —
-  // greedy \d{1,3} could eat into a plain run before a grouped match got a
-  // chance, silently dropping ungrouped numbers instead of matching them.
-  const pattern =
-    /\d{1,3}(?:[\s  ]\d{3})+(?:[.,]\d{1,2})?|\d{4,6}(?:[.,]\d{1,2})?/g;
-  for (const match of text.matchAll(pattern)) {
+  for (const match of text.matchAll(new RegExp(PRICE_PATTERN_SOURCE, "g"))) {
     const value = parseFloat(
-      match[0].replace(/[\s\u00a0\u202f]/g, "").replace(",", "."),
+      match[0].replace(/[\s  ]/g, "").replace(",", "."),
     );
     if (Number.isFinite(value) && value >= min && value <= max) {
       found.push({ value, index: match.index, raw: match[0] });
@@ -196,63 +153,67 @@ async function fetchKaseAverage() {
   };
 }
 
-// --- National Bank of Kazakhstan: price of 1 gram of gold -----------------
-// The page's markup isn't documented, so rather than depend on a selector
-// that may not exist, this looks for a plausible tenge figure near a date.
-// matchedContext is kept in the output so a wrong match is visible and
-// diagnosable rather than silent.
+// --- National Bank of Kazakhstan: price of gold per gram, several days ----
+// The page itself publishes a small table of recent days ("# Дата
+// Стоимость" — row number, an ISO date, a tenge figure), confirmed by a
+// live capture: "1 2026-07-29 61 889.33 2 2026-07-28 62 267.21 ...". That
+// table already skips weekends on its own (a Monday row is immediately
+// followed by the prior Friday's), so parsing every row in one fetch gives
+// a full multi-day history directly — no need to accumulate one day at a
+// time across separate runs.
 const GOLD_KZT_MIN = 5_000;
 const GOLD_KZT_MAX = 500_000;
-const DATE_LOOKBACK_DAYS = 7;
+const HISTORY_ROWS_WANTED = 10; // a few more than the 5 the page displays
 
-function shiftIsoDate(isoDate, days) {
-  const d = new Date(`${isoDate}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
+function parseNbkHistoryRows(text) {
+  const rowPattern = new RegExp(
+    `\\b\\d{1,2}\\s+(\\d{4}-\\d{2}-\\d{2})\\s+(${PRICE_PATTERN_SOURCE})`,
+    "g",
+  );
+  const rows = [];
+  for (const match of text.matchAll(rowPattern)) {
+    const date = match[1];
+    const price = parseFloat(match[2].replace(/[\s  ]/g, "").replace(",", "."));
+    if (Number.isFinite(price) && price >= GOLD_KZT_MIN && price <= GOLD_KZT_MAX) {
+      rows.push({ date, pricePerGram: price, index: match.index, raw: match[0] });
+    }
+  }
+  return rows;
 }
 
 async function fetchNbkGold() {
   const response = await request("https://nationalbank.kz/ru/gold/zoloto");
   const text = toPlainText(await response.text());
 
-  // Deliberately does NOT pick "the most recent date found anywhere on the
-  // page" — a live run against the real site did exactly that and anchored
-  // on "01.02.2016" from an archive-links section, not the actual price
-  // date (the price value next to it happened to still be right, by
-  // coincidence — the date label was not). Probing backward for an *exact*
-  // match on today's date, then yesterday's, etc., can't be fooled by
-  // unrelated historical dates elsewhere on the page: an archive link would
-  // have to happen to name one of the last few real days, which archives by
-  // definition don't.
-  //
-  // Tries both YYYY-MM-DD and DD.MM.YYYY: a later live run's matchedContext
-  // showed the page's actual price table uses ISO-style dates
-  // ("2026-07-29"), not the DD.MM.YYYY this originally assumed — that
-  // mismatch meant date-anchoring silently never matched at all and always
-  // fell through to the fallback strategy below (which happened to still
-  // land on the right number only because today's row comes first in the
-  // table). Both formats are tried since the exact layout isn't confirmed
-  // beyond that one capture.
-  const todayAlmaty = almatyDateString();
-  for (let back = 0; back <= DATE_LOOKBACK_DAYS; back++) {
-    const candidateIso = shiftIsoDate(todayAlmaty, -back);
-    const [y, m, d] = candidateIso.split("-");
-    for (const label of [candidateIso, `${d}.${m}.${y}`]) {
-      const index = text.indexOf(label);
-      if (index === -1) continue;
-      const after = text.slice(index + label.length);
-      const [hit] = parseNumbers(after, GOLD_KZT_MIN, GOLD_KZT_MAX);
-      if (hit) {
-        return {
-          pricePerGram: hit.value,
-          date: candidateIso,
-          strategy: "date-anchored",
-          matchedContext: contextAround(text, index, label.length),
-        };
-      }
+  const tableRows = parseNbkHistoryRows(text);
+  if (tableRows.length > 0) {
+    // Dedup by date (keep first occurrence) and sort newest-first.
+    const seen = new Set();
+    const deduped = [];
+    for (const row of tableRows) {
+      if (seen.has(row.date)) continue;
+      seen.add(row.date);
+      deduped.push(row);
     }
+    deduped.sort((a, b) => b.date.localeCompare(a.date));
+    const latest = deduped[0];
+    const history = deduped
+      .slice(0, HISTORY_ROWS_WANTED)
+      .map(({ date, pricePerGram }) => ({ date, pricePerGram }))
+      .sort((a, b) => a.date.localeCompare(b.date)); // oldest-first for display
+
+    return {
+      pricePerGram: latest.pricePerGram,
+      date: latest.date,
+      strategy: "table-rows",
+      matchedContext: contextAround(text, latest.index, latest.raw.length),
+      history,
+    };
   }
 
+  // Fallback: no recognizable table found (page layout changed?) — grab the
+  // first plausible number on the page rather than fail outright, but be
+  // honest that its date isn't confirmed and there's no history to show.
   const [fallback] = parseNumbers(text, GOLD_KZT_MIN, GOLD_KZT_MAX);
   if (!fallback) {
     throw new Error("На странице Нацбанка не нашли правдоподобную цену.");
@@ -262,6 +223,7 @@ async function fetchNbkGold() {
     date: null,
     strategy: "first-plausible-number",
     matchedContext: contextAround(text, fallback.index, fallback.raw.length),
+    history: [],
   };
 }
 
@@ -286,7 +248,6 @@ function crossCheckGoldGram(nbkGold, goldSpot, kase) {
     looksConsistent: Math.abs(deviationPercent) <= 5,
   };
 }
-
 
 async function collect(name, fn) {
   try {
@@ -325,8 +286,3 @@ const payload = {
 await mkdir(dirname(OUT_PATH), { recursive: true });
 await writeFile(OUT_PATH, `${JSON.stringify(payload, null, 2)}\n`);
 console.log(`Записано в ${OUT_PATH}`);
-
-const history = await updateGoldHistory(nbkGold);
-console.log(
-  `Записано в ${HISTORY_PATH} (${history.entries.length} дн., последняя: ${history.entries.at(-1)?.date ?? "—"})`,
-);
