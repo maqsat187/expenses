@@ -22,6 +22,14 @@ export type MarketData = {
     strategy: string;
     matchedContext: string;
   }>;
+  // Present only when all three sources loaded: compares the National
+  // Bank's published gram price against the same figure derived from spot
+  // price and the KASE rate. Null when it couldn't be computed.
+  crossCheck: {
+    expectedFromSpot: number;
+    deviationPercent: number;
+    looksConsistent: boolean;
+  } | null;
 };
 
 export type MarketDataResult =

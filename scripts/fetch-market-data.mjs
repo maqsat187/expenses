@@ -57,10 +57,24 @@ function toPlainText(html) {
 }
 
 function parseNumbers(text, min, max) {
-  const matches = text.match(/\d{1,3}(?:[\s  ]?\d{3})*(?:[.,]\d{1,2})?/g) ?? [];
-  return matches
-    .map((raw) => parseFloat(raw.replace(/[\s  ]/g, "").replace(",", ".")))
-    .filter((n) => Number.isFinite(n) && n >= min && n <= max);
+  const found = [];
+  const pattern = /\d{1,3}(?:[\s\u00a0\u202f]?\d{3})*(?:[.,]\d{1,2})?/g;
+  for (const match of text.matchAll(pattern)) {
+    const value = parseFloat(
+      match[0].replace(/[\s\u00a0\u202f]/g, "").replace(",", "."),
+    );
+    if (Number.isFinite(value) && value >= min && value <= max) {
+      found.push({ value, index: match.index, raw: match[0] });
+    }
+  }
+  return found;
+}
+
+// Quotes the text a number was actually read from. Re-searching for the
+// digits afterwards would land on the first coincidental occurrence
+// instead, making the recorded context misreport where the value came from.
+function contextAround(text, index, rawLength) {
+  return text.slice(Math.max(0, index - 90), index + rawLength + 90).trim();
 }
 
 // --- GOLD SPOT USD (Gold-API.com) -----------------------------------------
@@ -159,34 +173,52 @@ async function fetchNbkGold() {
   }
 
   if (best) {
-    const context = text.slice(best.index, best.index + 200);
-    const [price] = parseNumbers(
-      context.slice(best.date.length),
-      GOLD_KZT_MIN,
-      GOLD_KZT_MAX,
-    );
-    if (Number.isFinite(price)) {
+    const after = text.slice(best.index + best.date.length);
+    const [hit] = parseNumbers(after, GOLD_KZT_MIN, GOLD_KZT_MAX);
+    if (hit) {
       return {
-        pricePerGram: price,
+        pricePerGram: hit.value,
         date: best.date,
         strategy: "date-anchored",
-        matchedContext: context.slice(0, 200),
+        matchedContext: contextAround(text, best.index, best.date.length),
       };
     }
   }
 
   const [fallback] = parseNumbers(text, GOLD_KZT_MIN, GOLD_KZT_MAX);
-  if (!Number.isFinite(fallback)) {
+  if (!fallback) {
     throw new Error("На странице Нацбанка не нашли правдоподобную цену.");
   }
-  const at = text.indexOf(String(Math.trunc(fallback)).slice(0, 3));
   return {
-    pricePerGram: fallback,
+    pricePerGram: fallback.value,
     date: null,
     strategy: "first-plausible-number",
-    matchedContext: text.slice(Math.max(0, at - 100), at + 100),
+    matchedContext: contextAround(text, fallback.index, fallback.raw.length),
   };
 }
+
+// Independent sanity check on the scraped gram price: gold spot converted
+// to tenge should land in the same place. The two come from completely
+// separate sources (Gold-API + KASE vs. the National Bank's own page), so
+// close agreement is strong evidence the scrape grabbed the right number,
+// and a large gap is a signal it grabbed something else entirely.
+const TROY_OUNCE_GRAMS = 31.1034768;
+
+function crossCheckGoldGram(nbkGold, goldSpot, kase) {
+  if (nbkGold.status !== "ok" || goldSpot.status !== "ok" || kase.status !== "ok") {
+    return null;
+  }
+  const expected = (goldSpot.price / TROY_OUNCE_GRAMS) * kase.averagePrice;
+  const deviationPercent = ((nbkGold.pricePerGram - expected) / expected) * 100;
+  return {
+    expectedFromSpot: Number(expected.toFixed(2)),
+    deviationPercent: Number(deviationPercent.toFixed(2)),
+    // A scrape that picked up an unrelated number (a phone number, a page
+    // count) would miss by far more than normal spread and timing drift.
+    looksConsistent: Math.abs(deviationPercent) <= 5,
+  };
+}
+
 
 async function collect(name, fn) {
   try {
@@ -206,11 +238,20 @@ const [goldSpot, kase, nbkGold] = await Promise.all([
   collect("nbk-gold", fetchNbkGold),
 ]);
 
+const crossCheck = crossCheckGoldGram(nbkGold, goldSpot, kase);
+if (crossCheck) {
+  const verdict = crossCheck.looksConsistent ? "✓ сходится" : "⚠ РАСХОЖДЕНИЕ";
+  console.log(
+    `\n${verdict}: цена НБРК ${nbkGold.pricePerGram} ₸/г против ${crossCheck.expectedFromSpot} ₸/г из спота×курса (${crossCheck.deviationPercent}%)`,
+  );
+}
+
 const payload = {
   generatedAt: new Date().toISOString(),
   goldSpot,
   kase,
   nbkGold,
+  crossCheck,
 };
 
 await mkdir(dirname(OUT_PATH), { recursive: true });

@@ -179,6 +179,19 @@ export default function GoldCoinPage() {
                 />
               ))}
             </div>
+            {snapshot.crossCheck && (
+              <p
+                className={
+                  snapshot.crossCheck.looksConsistent
+                    ? "text-xs text-slate-500 dark:text-slate-400"
+                    : "text-xs text-amber-700 dark:text-amber-500"
+                }
+              >
+                {snapshot.crossCheck.looksConsistent
+                  ? `Сходится с расчётом из спота и курса KASE (${formatMoney(snapshot.crossCheck.expectedFromSpot)}/г, расхождение ${snapshot.crossCheck.deviationPercent}%).`
+                  : `Внимание: расходится с расчётом из спота и курса KASE (${formatMoney(snapshot.crossCheck.expectedFromSpot)}/г, расхождение ${snapshot.crossCheck.deviationPercent}%). Проверьте цифру вручную.`}
+              </p>
+            )}
             <a
               href="https://nationalbank.kz/ru/gold/zoloto"
               target="_blank"
