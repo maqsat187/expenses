@@ -165,32 +165,108 @@ export default function GoldCoinPage() {
       )}
 
       {snapshot && (
-        <p className="text-xs text-slate-500 dark:text-slate-400">
-          Источники:{" "}
-          <a href="https://gold-api.com/" target="_blank" rel="noreferrer" className="hover:underline">
-            Gold-API.com
-          </a>
-          ,{" "}
-          <a
-            href="https://kase.kz/ru/account/trades"
-            target="_blank"
-            rel="noreferrer"
-            className="hover:underline"
-          >
-            KASE
-          </a>
-          ,{" "}
-          <a
-            href="https://nationalbank.kz/ru/gold/zoloto"
-            target="_blank"
-            rel="noreferrer"
-            className="hover:underline"
-          >
-            Нацбанк РК
-          </a>
-          . Данные собраны {formatSnapshotTime(snapshot.generatedAt)}, обновляются по расписанию.
-        </p>
+        <section className="flex flex-col gap-2">
+          <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400">
+            Исходные данные из источников
+          </h2>
+          <div className="flex flex-col gap-2 text-xs text-slate-500 dark:text-slate-400">
+            <SourceCard
+              title="Gold-API.com — золото, спот (USD/тройская унция)"
+              href="https://gold-api.com/"
+              value={goldSpotOk ? `${goldSpotOk.price.toFixed(2)} USD` : null}
+              error={snapshot.goldSpot.status === "error" ? snapshot.goldSpot.message : null}
+            />
+            <SourceCard
+              title="KASE — USDKZT_TOM, средневзвешенная цена"
+              href="https://kase.kz/ru/account/trades"
+              value={kaseOk ? `${kaseOk.averagePrice.toFixed(2)} ₸` : null}
+              error={snapshot.kase.status === "error" ? snapshot.kase.message : null}
+            >
+              {kaseOk && (
+                <p>
+                  {kaseOk.isRealtime
+                    ? "Данные в реальном времени."
+                    : "Данные с задержкой (анонимный доступ без входа в аккаунт KASE)."}
+                  {kaseOk.serverTime && ` Время биржи на момент запроса: ${kaseOk.serverTime}.`}
+                </p>
+              )}
+            </SourceCard>
+            <SourceCard
+              title="Нацбанк РК — цена 1 г золота в тенге"
+              href="https://nationalbank.kz/ru/gold/zoloto"
+              value={
+                snapshot.nbkGold.status === "ok" ? formatMoney(snapshot.nbkGold.pricePerGram) : null
+              }
+              error={snapshot.nbkGold.status === "error" ? snapshot.nbkGold.message : null}
+            >
+              {snapshot.nbkGold.status === "ok" && (
+                <>
+                  <p>
+                    {snapshot.nbkGold.date
+                      ? `Дата на странице подтверждена: ${snapshot.nbkGold.date}.`
+                      : "Дата на странице не подтвердилась — взято первое правдоподобное число, возможна погрешность."}
+                  </p>
+                  <p className="italic">Найдено на странице: «{snapshot.nbkGold.matchedContext}»</p>
+                  {snapshot.crossCheck && (
+                    <p
+                      className={
+                        snapshot.crossCheck.looksConsistent
+                          ? ""
+                          : "font-medium text-amber-700 dark:text-amber-500"
+                      }
+                    >
+                      {snapshot.crossCheck.looksConsistent ? "Сходится" : "Не сходится"} с
+                      независимым расчётом из спота и курса KASE (
+                      {formatMoney(snapshot.crossCheck.expectedFromSpot)}/г, расхождение{" "}
+                      {snapshot.crossCheck.deviationPercent}%).
+                    </p>
+                  )}
+                </>
+              )}
+            </SourceCard>
+          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Данные собраны {formatSnapshotTime(snapshot.generatedAt)}. Обновляются не по
+            расписанию, а при каждом деплое сайта — пуш в main или ручной запуск workflow.
+          </p>
+        </section>
       )}
+    </div>
+  );
+}
+
+function SourceCard({
+  title,
+  href,
+  value,
+  error,
+  children,
+}: {
+  title: string;
+  href: string;
+  value: string | null;
+  error?: string | null;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-1 rounded-md border border-slate-200 p-3 dark:border-slate-800">
+      <div className="flex items-center justify-between gap-3">
+        <a
+          href={href}
+          target="_blank"
+          rel="noreferrer"
+          className="font-medium text-slate-700 hover:underline dark:text-slate-300"
+        >
+          {title}
+        </a>
+        {value !== null ? (
+          <span className="shrink-0 font-medium text-slate-700 dark:text-slate-300">{value}</span>
+        ) : (
+          <span className="shrink-0 text-red-600 dark:text-red-400">ошибка</span>
+        )}
+      </div>
+      {error && <p>{error}</p>}
+      {children}
     </div>
   );
 }
