@@ -4,6 +4,12 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  # Refreshes the market data on the deployed site without needing a code
+  # push. Times are UTC; Almaty is UTC+5, so this covers roughly 10:00-18:30
+  # Almaty on weekdays — including both USDKZT_TOM fixings (15:30 and 17:30
+  # Almaty = 10:30 and 12:30 UTC).
+  schedule:
+    - cron: "*/30 5-13 * * 1-5"
 
 permissions:
   contents: read
@@ -24,6 +30,12 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      # Collects data from sources a browser can't reach cross-origin. Never
+      # fails the deploy: the script records per-source errors in its JSON
+      # output and exits 0, so a source being down degrades that one card on
+      # the page instead of blocking the whole site from shipping.
+      - name: Fetch market data
+        run: node scripts/fetch-market-data.mjs
       - run: npm run build
       - run: touch out/.nojekyll
       - uses: actions/upload-pages-artifact@v3

@@ -24,6 +24,11 @@
 .DS_Store
 *.pem
 
+# Market data fetched by scripts/fetch-market-data.mjs during the deploy
+# workflow. Generated per build, never committed — a checked-in copy would
+# be stale market data pretending to be current.
+/public/market-data.json
+
 # debug
 npm-debug.log*
 yarn-debug.log*

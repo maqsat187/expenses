@@ -4,8 +4,11 @@ import Link from "next/link";
 import { useState } from "react";
 import { useAuthGuard } from "@/lib/useAuthGuard";
 import { fetchGoldApiSpot, type SpotPriceResult } from "@/lib/goldPrice";
-import { fetchKaseUsdKztAverage, type KaseAverageResult } from "@/lib/kaseRate";
-import { fetchNbkGoldPricePerGram, type NbkGoldResult } from "@/lib/nbkGold";
+import {
+  fetchMarketData,
+  formatSnapshotTime,
+  type MarketDataResult,
+} from "@/lib/marketData";
 import { formatMoney } from "@/lib/format";
 
 const GRAM_AMOUNTS = [1, 1.555];
@@ -13,9 +16,8 @@ const GRAM_AMOUNTS = [1, 1.555];
 export default function GoldCoinPage() {
   const user = useAuthGuard();
   const [loading, setLoading] = useState(false);
-  const [spotResult, setSpotResult] = useState<SpotPriceResult | null>(null);
-  const [kaseResult, setKaseResult] = useState<KaseAverageResult | null>(null);
-  const [nbkGoldResult, setNbkGoldResult] = useState<NbkGoldResult | null>(null);
+  const [spot, setSpot] = useState<SpotPriceResult | null>(null);
+  const [market, setMarket] = useState<MarketDataResult | null>(null);
 
   if (!user) {
     return null;
@@ -39,19 +41,23 @@ export default function GoldCoinPage() {
 
   async function handleForecastClick() {
     setLoading(true);
-    setSpotResult(null);
-    setKaseResult(null);
-    setNbkGoldResult(null);
-    const [spot, kase, nbkGold] = await Promise.all([
+    setSpot(null);
+    setMarket(null);
+    const [spotResult, marketResult] = await Promise.all([
       fetchGoldApiSpot(),
-      fetchKaseUsdKztAverage(),
-      fetchNbkGoldPricePerGram(),
+      fetchMarketData(),
     ]);
-    setSpotResult(spot);
-    setKaseResult(kase);
-    setNbkGoldResult(nbkGold);
+    setSpot(spotResult);
+    setMarket(marketResult);
     setLoading(false);
   }
+
+  const snapshot = market?.status === "ok" ? market.data : null;
+  // Gold-API allows cross-origin calls, so the browser gets a price as of
+  // this click. If that call fails, the deploy-time snapshot still has one.
+  const liveSpot = spot?.status === "ok" ? spot.price : null;
+  const snapshotSpot =
+    snapshot?.goldSpot.status === "ok" ? snapshot.goldSpot.price : null;
 
   return (
     <div className="flex flex-col gap-10">
@@ -80,135 +86,148 @@ export default function GoldCoinPage() {
           {loading ? "Собираем данные…" : "Прогноз цены золота на завтра"}
         </button>
         <p className="text-xs text-slate-500 dark:text-slate-400">
-          Пока это только сбор исходных цен из внешних источников — сам
-          прогноз ещё не считается. Источники указаны рядом с каждым
-          значением, перепроверяйте цифры вручную по ссылкам.
+          Пока это только сбор исходных цен — сам прогноз ещё не считается.
+          Перепроверяйте цифры по ссылкам на источники.
         </p>
       </section>
 
-      {spotResult && (
+      {market?.status === "error" && (
+        <p className="text-sm text-red-600 dark:text-red-400">
+          {market.message}
+        </p>
+      )}
+
+      {(spot || snapshot) && (
         <section className="flex flex-col gap-3">
           <h2 className="text-lg font-medium">GOLD SPOT USD</h2>
-          <SpotRow result={spotResult} />
+          <Card
+            title="Gold-API.com"
+            href="https://gold-api.com/"
+            value={
+              liveSpot !== null
+                ? `${liveSpot.toFixed(2)} USD`
+                : snapshotSpot !== null
+                  ? `${snapshotSpot.toFixed(2)} USD`
+                  : null
+            }
+            note={
+              liveSpot !== null
+                ? "Цена на момент нажатия кнопки."
+                : snapshotSpot !== null && snapshot
+                  ? `Из сохранённых данных (${formatSnapshotTime(snapshot.generatedAt)}) — прямой запрос не прошёл.`
+                  : spot?.status === "error"
+                    ? spot.message
+                    : "Нет данных."
+            }
+          />
         </section>
       )}
 
-      {kaseResult && (
-        <section className="flex flex-col gap-3">
-          <h2 className="text-lg font-medium">
-            USD/KZT — средневзвешенная цена (KASE, USDKZT_TOM)
-          </h2>
-          <KaseRow result={kaseResult} />
-        </section>
-      )}
+      {snapshot && (
+        <>
+          <section className="flex flex-col gap-3">
+            <h2 className="text-lg font-medium">
+              USD/KZT — средневзвешенная (KASE, USDKZT_TOM)
+            </h2>
+            <Card
+              title="KASE"
+              href="https://kase.kz/ru/account/trades"
+              value={
+                snapshot.kase.status === "ok"
+                  ? `${snapshot.kase.averagePrice.toFixed(2)} ₸`
+                  : null
+              }
+              note={
+                snapshot.kase.status === "ok"
+                  ? [
+                      `Собрано ${formatSnapshotTime(snapshot.generatedAt)}.`,
+                      snapshot.kase.isRealtime
+                        ? "Данные в реальном времени."
+                        : "Данные с задержкой (анонимный доступ).",
+                      snapshot.kase.serverTime
+                        ? `Время биржи: ${snapshot.kase.serverTime}.`
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" ")
+                  : snapshot.kase.message
+              }
+            />
+          </section>
 
-      {nbkGoldResult && (
-        <section className="flex flex-col gap-3">
-          <h2 className="text-lg font-medium">Цена золота в тенге (Нацбанк РК)</h2>
-          <div className="flex flex-col gap-2">
-            {GRAM_AMOUNTS.map((grams) => (
-              <NbkGoldRow key={grams} grams={grams} result={nbkGoldResult} />
-            ))}
-          </div>
+          <section className="flex flex-col gap-3">
+            <h2 className="text-lg font-medium">
+              Цена золота в тенге (Нацбанк РК)
+            </h2>
+            <div className="flex flex-col gap-2">
+              {GRAM_AMOUNTS.map((grams) => (
+                <Card
+                  key={grams}
+                  title={`${grams.toString().replace(".", ",")} г`}
+                  value={
+                    snapshot.nbkGold.status === "ok"
+                      ? formatMoney(snapshot.nbkGold.pricePerGram * grams)
+                      : null
+                  }
+                  note={
+                    snapshot.nbkGold.status === "ok"
+                      ? snapshot.nbkGold.date
+                        ? `На ${snapshot.nbkGold.date}. Собрано ${formatSnapshotTime(snapshot.generatedAt)}.`
+                        : `Собрано ${formatSnapshotTime(snapshot.generatedAt)}.`
+                      : snapshot.nbkGold.message
+                  }
+                />
+              ))}
+            </div>
+            <a
+              href="https://nationalbank.kz/ru/gold/zoloto"
+              target="_blank"
+              rel="noreferrer"
+              className="text-sm text-slate-600 hover:underline dark:text-slate-400"
+            >
+              Открыть nationalbank.kz для проверки вручную →
+            </a>
+          </section>
+        </>
+      )}
+    </div>
+  );
+}
+
+function Card({
+  title,
+  href,
+  value,
+  note,
+}: {
+  title: string;
+  href?: string;
+  value: string | null;
+  note?: string | null;
+}) {
+  return (
+    <div className="rounded-md border border-slate-200 p-3 text-sm dark:border-slate-800">
+      <div className="flex items-center justify-between gap-3">
+        {href ? (
           <a
-            href="https://nationalbank.kz/ru/gold/zoloto"
+            href={href}
             target="_blank"
             rel="noreferrer"
-            className="text-sm text-slate-600 hover:underline dark:text-slate-400"
+            className="font-medium hover:underline"
           >
-            Открыть nationalbank.kz для проверки вручную →
+            {title}
           </a>
-        </section>
-      )}
-    </div>
-  );
-}
-
-function SpotRow({ result }: { result: SpotPriceResult }) {
-  return (
-    <div className="rounded-md border border-slate-200 p-3 text-sm dark:border-slate-800">
-      <div className="flex items-center justify-between gap-3">
-        <a
-          href={result.sourceUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="font-medium hover:underline"
-        >
-          {result.source}
-        </a>
-        {result.status === "ok" ? (
-          <span className="font-semibold">{result.price.toFixed(2)} USD</span>
         ) : (
-          <span className="text-red-600 dark:text-red-400">Ошибка</span>
+          <span className="font-medium">{title}</span>
         )}
-      </div>
-      {result.status === "error" && (
-        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          {result.message}
-        </p>
-      )}
-    </div>
-  );
-}
-
-function KaseRow({ result }: { result: KaseAverageResult }) {
-  return (
-    <div className="rounded-md border border-slate-200 p-3 text-sm dark:border-slate-800">
-      <div className="flex items-center justify-between gap-3">
-        <a
-          href="https://kase.kz/ru/account/trades"
-          target="_blank"
-          rel="noreferrer"
-          className="font-medium hover:underline"
-        >
-          KASE
-        </a>
-        {result.status === "ok" ? (
-          <span className="font-semibold">
-            {result.averagePrice.toFixed(2)} ₸
-          </span>
-        ) : (
-          <span className="text-red-600 dark:text-red-400">Ошибка</span>
-        )}
-      </div>
-      {result.status === "ok" && !result.isRealtime && (
-        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          Данные с задержкой (анонимный доступ без входа в аккаунт).
-        </p>
-      )}
-      {result.status === "error" && (
-        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          {result.message}
-        </p>
-      )}
-    </div>
-  );
-}
-
-function NbkGoldRow({
-  grams,
-  result,
-}: {
-  grams: number;
-  result: NbkGoldResult;
-}) {
-  const label = `${grams.toString().replace(".", ",")} г`;
-  return (
-    <div className="rounded-md border border-slate-200 p-3 text-sm dark:border-slate-800">
-      <div className="flex items-center justify-between gap-3">
-        <span className="font-medium">{label}</span>
-        {result.status === "ok" ? (
-          <span className="font-semibold">
-            {formatMoney(result.pricePerGram * grams)}
-          </span>
+        {value !== null ? (
+          <span className="font-semibold">{value}</span>
         ) : (
           <span className="text-red-600 dark:text-red-400">Недоступно</span>
         )}
       </div>
-      {result.status === "error" && (
-        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          {result.message}
-        </p>
+      {note && (
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{note}</p>
       )}
     </div>
   );
