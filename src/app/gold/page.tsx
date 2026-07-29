@@ -251,9 +251,11 @@ export default function GoldCoinPage() {
           </div>
           {snapshot && (
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              KASE и Нацбанк собраны {formatSnapshotTime(snapshot.generatedAt)} — обновляются не
-              по расписанию, а при каждом деплое сайта (пуш в main или ручной запуск workflow).
-              Gold-API — живьём, при каждом нажатии кнопки.
+              KASE и Нацбанк собраны {formatSnapshotTime(snapshot.generatedAt)}. Их нельзя
+              запросить напрямую из браузера, поэтому они обновляются на сервере: каждые 15 минут
+              в рабочие дни с 12:00 до 15:45 по Алматы (включая фиксинг 15:30), плюс один раз в
+              09:00. Вне этого окна цифры могут быть с прошлого запуска. Gold-API — живьём, в
+              момент нажатия кнопки.
             </p>
           )}
         </section>

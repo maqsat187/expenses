@@ -3,11 +3,24 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
-  # No schedule: market data (and the "Прогноз" button's numbers) only
-  # refresh on a push to main or a manual run of this workflow, not on a
-  # timer. The Gold Coin page always shows its data's collection time, so
-  # staleness is visible rather than silently assumed away.
   workflow_dispatch:
+  # Cron is UTC; Kazakhstan is UTC+5 year-round (no DST), so subtract 5 to
+  # read these as Almaty local time. Concentrated on the window that
+  # matters for KASE's USDKZT_TOM weighted average rather than spread
+  # evenly through the day.
+  #
+  # One run fetches all three sources, so the National Bank's daily gold
+  # price is refreshed by these too — it needs no cron of its own.
+  schedule:
+    # Every 15 min, 12:00-15:45 Almaty, weekdays: the window where the
+    # weighted average is actively forming. The tail end also captures the
+    # 15:30 fixing itself (10:30 UTC) — the value the National Bank adopts
+    # as the official rate.
+    - cron: "*/15 7-10 * * 1-5"
+    # One morning run (09:00 Almaty) so the new day's National Bank price
+    # and an early KASE reading are live before that window opens —
+    # otherwise a morning visitor would still see yesterday's afternoon.
+    - cron: "0 4 * * 1-5"
 
 permissions:
   contents: read

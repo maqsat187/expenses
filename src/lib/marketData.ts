@@ -4,9 +4,10 @@
 // reason the data is collected server-side instead of fetched from kase.kz
 // and nationalbank.kz directly in the browser.
 //
-// The workflow only runs on a push or a manual trigger (no schedule), so
-// this can be stale by however long it's been since the last one; every
-// value is paired with generatedAt and the UI shows it so that's visible.
+// Refreshed by the workflow's schedule (concentrated on KASE's 12:00-15:45
+// Almaty window, plus a morning run), a push, or a manual trigger — so
+// outside that window this can be hours old. Every value is paired with
+// generatedAt and the UI shows it, so staleness stays visible.
 export type SnapshotEntry<T> = ({ status: "ok" } & T) | { status: "error"; message: string };
 
 export type MarketData = {
