@@ -52,8 +52,9 @@ async function updateGoldHistory(nbkGold) {
 
   const today = almatyDateString();
   if (nbkGold.status === "ok" && isWeekday(today)) {
-    // Replace, not append: the schedule runs every 30 minutes, so a run
-    // later in the day should update today's entry rather than duplicate it.
+    // Replace, not append: this runs on every push and every manual
+    // workflow_dispatch, so a second run the same day should update today's
+    // entry rather than duplicate it.
     const withoutToday = history.entries.filter((e) => e.date !== today);
     withoutToday.push({ date: today, nbkPricePerGram: nbkGold.pricePerGram });
     withoutToday.sort((a, b) => a.date.localeCompare(b.date));

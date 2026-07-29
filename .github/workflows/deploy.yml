@@ -3,13 +3,11 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
+  # No schedule: market data (and the "Прогноз" button's numbers) only
+  # refresh on a push to main or a manual run of this workflow, not on a
+  # timer. The Gold Coin page always shows its data's collection time, so
+  # staleness is visible rather than silently assumed away.
   workflow_dispatch:
-  # Refreshes the market data on the deployed site without needing a code
-  # push. Times are UTC; Almaty is UTC+5, so this covers roughly 10:00-18:30
-  # Almaty on weekdays — including both USDKZT_TOM fixings (15:30 and 17:30
-  # Almaty = 10:30 and 12:30 UTC).
-  schedule:
-    - cron: "*/30 5-13 * * 1-5"
 
 permissions:
   contents: read

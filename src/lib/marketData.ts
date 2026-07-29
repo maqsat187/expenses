@@ -4,8 +4,9 @@
 // reason the data is collected server-side instead of fetched from kase.kz
 // and nationalbank.kz directly in the browser.
 //
-// Freshness is bounded by how often the workflow runs (see its schedule),
-// so every value is paired with generatedAt and the UI shows it.
+// The workflow only runs on a push or a manual trigger (no schedule), so
+// this can be stale by however long it's been since the last one; every
+// value is paired with generatedAt and the UI shows it so that's visible.
 export type SnapshotEntry<T> = ({ status: "ok" } & T) | { status: "error"; message: string };
 
 export type MarketData = {
