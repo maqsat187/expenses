@@ -23,6 +23,13 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Overrides the workflow-level "contents: read" default so this job can
+    # commit the gold price history back to the repo (see the step below).
+    # Job-level permissions replace rather than merge with the workflow
+    # default, but "build" never calls deploy-pages, so contents is the only
+    # scope it needs — pages/id-token stay on the "deploy" job below.
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -36,6 +43,25 @@ jobs:
       # the page instead of blocking the whole site from shipping.
       - name: Fetch market data
         run: node scripts/fetch-market-data.mjs
+      # public/gold-history.json (unlike market-data.json) is committed, so
+      # the daily gold price accumulates across runs instead of resetting on
+      # every deploy. "[skip ci]" stops this push from retriggering the
+      # workflow. continue-on-error so a push failure (e.g. branch
+      # protection) degrades tomorrow's history instead of blocking today's
+      # deploy — the file was already written locally, so this build's
+      # artifact has today's data regardless of whether the push succeeds.
+      - name: Save gold price history
+        continue-on-error: true
+        run: |
+          if git diff --quiet -- public/gold-history.json; then
+            echo "No history changes to commit."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add public/gold-history.json
+            git commit -m "Update gold price history [skip ci]"
+            git push origin HEAD:main
+          fi
       - run: npm run build
       - run: touch out/.nojekyll
       - uses: actions/upload-pages-artifact@v3

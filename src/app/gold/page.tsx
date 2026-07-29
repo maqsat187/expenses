@@ -2,62 +2,64 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { useAuthGuard } from "@/lib/useAuthGuard";
-import { fetchGoldApiSpot, type SpotPriceResult } from "@/lib/goldPrice";
+import { fetchMarketData, formatSnapshotTime, type MarketDataResult } from "@/lib/marketData";
 import {
-  fetchMarketData,
-  formatSnapshotTime,
-  type MarketDataResult,
-} from "@/lib/marketData";
-import { formatMoney } from "@/lib/format";
+  fetchGoldHistory,
+  buildDailyGoldCoinSeries,
+  nextBusinessDayIso,
+  almatyNow,
+  type GoldHistoryResult,
+} from "@/lib/goldHistory";
+import {
+  formatMoney,
+  formatSignedMoney,
+  formatSignedPercent,
+  formatDateWithWeekday,
+} from "@/lib/format";
 
-const GRAM_AMOUNTS = [1, 1.555];
+const HISTORY_DAYS_SHOWN = 5;
+
+function changeColorClass(value: number | null): string {
+  if (value === null || value === 0) return "text-slate-500 dark:text-slate-400";
+  return value > 0
+    ? "text-green-600 dark:text-green-400"
+    : "text-red-600 dark:text-red-400";
+}
 
 export default function GoldCoinPage() {
-  const user = useAuthGuard();
   const [loading, setLoading] = useState(false);
-  const [spot, setSpot] = useState<SpotPriceResult | null>(null);
   const [market, setMarket] = useState<MarketDataResult | null>(null);
-
-  if (!user) {
-    return null;
-  }
-
-  if (user !== "Макс") {
-    return (
-      <div className="flex flex-col items-start gap-4">
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          Раздел Gold Coin доступен только профилю Макс.
-        </p>
-        <Link
-          href="/"
-          className="text-sm text-slate-600 hover:underline dark:text-slate-400"
-        >
-          ← Назад к расходам
-        </Link>
-      </div>
-    );
-  }
+  const [history, setHistory] = useState<GoldHistoryResult | null>(null);
 
   async function handleForecastClick() {
     setLoading(true);
-    setSpot(null);
     setMarket(null);
-    const [spotResult, marketResult] = await Promise.all([
-      fetchGoldApiSpot(),
+    setHistory(null);
+    const [marketResult, historyResult] = await Promise.all([
       fetchMarketData(),
+      fetchGoldHistory(),
     ]);
-    setSpot(spotResult);
     setMarket(marketResult);
+    setHistory(historyResult);
     setLoading(false);
   }
 
   const snapshot = market?.status === "ok" ? market.data : null;
-  // Gold-API allows cross-origin calls, so the browser gets a price as of
-  // this click. If that call fails, the deploy-time snapshot still has one.
-  const liveSpot = spot?.status === "ok" ? spot.price : null;
-  const snapshotSpot =
-    snapshot?.goldSpot.status === "ok" ? snapshot.goldSpot.price : null;
+  const series = history?.status === "ok" ? buildDailyGoldCoinSeries(history.entries) : null;
+  const recentSeries = series ? series.slice(-HISTORY_DAYS_SHOWN) : null;
+  const latest = series && series.length > 0 ? series[series.length - 1] : null;
+
+  const goldSpotOk = snapshot && snapshot.goldSpot.status === "ok" ? snapshot.goldSpot : null;
+  const kaseOk = snapshot && snapshot.kase.status === "ok" ? snapshot.kase : null;
+  const forecastPrice =
+    goldSpotOk && kaseOk ? (goldSpotOk.price / 20) * kaseOk.averagePrice : null;
+
+  const diffAmount =
+    forecastPrice !== null && latest ? forecastPrice - latest.goldCoinPrice : null;
+  const diffPercent =
+    diffAmount !== null && latest ? (diffAmount / latest.goldCoinPrice) * 100 : null;
+
+  const nextBusinessDate = nextBusinessDayIso(almatyNow());
 
   return (
     <div className="flex flex-col gap-10">
@@ -85,162 +87,109 @@ export default function GoldCoinPage() {
         >
           {loading ? "Собираем данные…" : "Прогноз цены золота на завтра"}
         </button>
-        <p className="text-xs text-slate-500 dark:text-slate-400">
-          Пока это только сбор исходных цен — сам прогноз ещё не считается.
-          Перепроверяйте цифры по ссылкам на источники.
-        </p>
       </section>
 
       {market?.status === "error" && (
-        <p className="text-sm text-red-600 dark:text-red-400">
-          {market.message}
-        </p>
+        <p className="text-sm text-red-600 dark:text-red-400">{market.message}</p>
       )}
 
-      {(spot || snapshot) && (
+      {series && (
         <section className="flex flex-col gap-3">
-          <h2 className="text-lg font-medium">GOLD SPOT USD</h2>
-          <Card
-            title="Gold-API.com"
-            href="https://gold-api.com/"
-            value={
-              liveSpot !== null
-                ? `${liveSpot.toFixed(2)} USD`
-                : snapshotSpot !== null
-                  ? `${snapshotSpot.toFixed(2)} USD`
-                  : null
-            }
-            note={
-              liveSpot !== null
-                ? "Цена на момент нажатия кнопки."
-                : snapshotSpot !== null && snapshot
-                  ? `Из сохранённых данных (${formatSnapshotTime(snapshot.generatedAt)}) — прямой запрос не прошёл.`
-                  : spot?.status === "error"
-                    ? spot.message
-                    : "Нет данных."
-            }
-          />
+          <h2 className="text-lg font-medium">
+            История цены Gold Coin (1,555 г) — последние {HISTORY_DAYS_SHOWN} рабочих дней
+          </h2>
+          {recentSeries && recentSeries.length > 0 ? (
+            <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-slate-50 text-slate-600 dark:bg-slate-900 dark:text-slate-400">
+                  <tr>
+                    <th className="px-3 py-2 font-medium">Дата</th>
+                    <th className="px-3 py-2 text-right font-medium">Цена</th>
+                    <th className="px-3 py-2 text-right font-medium">Изменение</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                  {recentSeries.map((point) => (
+                    <tr key={point.date}>
+                      <td className="px-3 py-2">{formatDateWithWeekday(point.date)}</td>
+                      <td className="px-3 py-2 text-right font-medium">
+                        {formatMoney(point.goldCoinPrice)}
+                      </td>
+                      <td className={`px-3 py-2 text-right ${changeColorClass(point.changeAmount)}`}>
+                        {point.changeAmount !== null && point.changePercent !== null
+                          ? `${formatSignedMoney(point.changeAmount)} (${formatSignedPercent(point.changePercent)})`
+                          : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-sm text-red-600 dark:text-red-400">
+              Пока нет накопленной истории — она собирается по расписанию, зайдите позже.
+            </p>
+          )}
+        </section>
+      )}
+      {history?.status === "error" && (
+        <p className="text-sm text-red-600 dark:text-red-400">{history.message}</p>
+      )}
+
+      {(market || history) && (
+        <section className="rounded-lg border-2 border-slate-300 p-5 dark:border-slate-700">
+          <h2 className="text-lg font-medium">
+            Прогноз на {formatDateWithWeekday(nextBusinessDate)}
+          </h2>
+          {forecastPrice !== null ? (
+            <>
+              <p className="mt-2 text-3xl font-bold">{formatMoney(forecastPrice)}</p>
+              {latest && diffAmount !== null && diffPercent !== null && (
+                <p className={`mt-1 text-base font-medium ${changeColorClass(diffAmount)}`}>
+                  {formatSignedMoney(diffAmount)} ({formatSignedPercent(diffPercent)}) к цене
+                  Нацбанка на {formatDateWithWeekday(latest.date)}
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="mt-2 text-sm text-red-600 dark:text-red-400">
+              Недоступно: нужны цена золота (Gold-API) и курс KASE, а один из них не загрузился.
+            </p>
+          )}
+          <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+            Расчёт: (цена золота Gold-API ÷ 20) × средневзвешенный курс USD/KZT KASE — это
+            простой пересчёт по формуле, а не гарантированный прогноз. Учтены только выходные
+            (сб/вс); праздники РК не исключены.
+          </p>
         </section>
       )}
 
       {snapshot && (
-        <>
-          <section className="flex flex-col gap-3">
-            <h2 className="text-lg font-medium">
-              USD/KZT — средневзвешенная (KASE, USDKZT_TOM)
-            </h2>
-            <Card
-              title="KASE"
-              href="https://kase.kz/ru/account/trades"
-              value={
-                snapshot.kase.status === "ok"
-                  ? `${snapshot.kase.averagePrice.toFixed(2)} ₸`
-                  : null
-              }
-              note={
-                snapshot.kase.status === "ok"
-                  ? [
-                      `Собрано ${formatSnapshotTime(snapshot.generatedAt)}.`,
-                      snapshot.kase.isRealtime
-                        ? "Данные в реальном времени."
-                        : "Данные с задержкой (анонимный доступ).",
-                      snapshot.kase.serverTime
-                        ? `Время биржи: ${snapshot.kase.serverTime}.`
-                        : null,
-                    ]
-                      .filter(Boolean)
-                      .join(" ")
-                  : snapshot.kase.message
-              }
-            />
-          </section>
-
-          <section className="flex flex-col gap-3">
-            <h2 className="text-lg font-medium">
-              Цена золота в тенге (Нацбанк РК)
-            </h2>
-            <div className="flex flex-col gap-2">
-              {GRAM_AMOUNTS.map((grams) => (
-                <Card
-                  key={grams}
-                  title={`${grams.toString().replace(".", ",")} г`}
-                  value={
-                    snapshot.nbkGold.status === "ok"
-                      ? formatMoney(snapshot.nbkGold.pricePerGram * grams)
-                      : null
-                  }
-                  note={
-                    snapshot.nbkGold.status === "ok"
-                      ? snapshot.nbkGold.date
-                        ? `На ${snapshot.nbkGold.date}. Собрано ${formatSnapshotTime(snapshot.generatedAt)}.`
-                        : `Собрано ${formatSnapshotTime(snapshot.generatedAt)}.`
-                      : snapshot.nbkGold.message
-                  }
-                />
-              ))}
-            </div>
-            {snapshot.crossCheck && (
-              <p
-                className={
-                  snapshot.crossCheck.looksConsistent
-                    ? "text-xs text-slate-500 dark:text-slate-400"
-                    : "text-xs text-amber-700 dark:text-amber-500"
-                }
-              >
-                {snapshot.crossCheck.looksConsistent
-                  ? `Сходится с расчётом из спота и курса KASE (${formatMoney(snapshot.crossCheck.expectedFromSpot)}/г, расхождение ${snapshot.crossCheck.deviationPercent}%).`
-                  : `Внимание: расходится с расчётом из спота и курса KASE (${formatMoney(snapshot.crossCheck.expectedFromSpot)}/г, расхождение ${snapshot.crossCheck.deviationPercent}%). Проверьте цифру вручную.`}
-              </p>
-            )}
-            <a
-              href="https://nationalbank.kz/ru/gold/zoloto"
-              target="_blank"
-              rel="noreferrer"
-              className="text-sm text-slate-600 hover:underline dark:text-slate-400"
-            >
-              Открыть nationalbank.kz для проверки вручную →
-            </a>
-          </section>
-        </>
-      )}
-    </div>
-  );
-}
-
-function Card({
-  title,
-  href,
-  value,
-  note,
-}: {
-  title: string;
-  href?: string;
-  value: string | null;
-  note?: string | null;
-}) {
-  return (
-    <div className="rounded-md border border-slate-200 p-3 text-sm dark:border-slate-800">
-      <div className="flex items-center justify-between gap-3">
-        {href ? (
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          Источники:{" "}
+          <a href="https://gold-api.com/" target="_blank" rel="noreferrer" className="hover:underline">
+            Gold-API.com
+          </a>
+          ,{" "}
           <a
-            href={href}
+            href="https://kase.kz/ru/account/trades"
             target="_blank"
             rel="noreferrer"
-            className="font-medium hover:underline"
+            className="hover:underline"
           >
-            {title}
+            KASE
           </a>
-        ) : (
-          <span className="font-medium">{title}</span>
-        )}
-        {value !== null ? (
-          <span className="font-semibold">{value}</span>
-        ) : (
-          <span className="text-red-600 dark:text-red-400">Недоступно</span>
-        )}
-      </div>
-      {note && (
-        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{note}</p>
+          ,{" "}
+          <a
+            href="https://nationalbank.kz/ru/gold/zoloto"
+            target="_blank"
+            rel="noreferrer"
+            className="hover:underline"
+          >
+            Нацбанк РК
+          </a>
+          . Данные собраны {formatSnapshotTime(snapshot.generatedAt)}, обновляются по расписанию.
+        </p>
       )}
     </div>
   );

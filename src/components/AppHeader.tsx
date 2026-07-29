@@ -20,40 +20,40 @@ export function AppHeader() {
         <Link href="/" className="text-base font-semibold">
           Expenses
         </Link>
-        {user && (
-          <div className="flex items-center gap-5 text-sm">
-            <Link
-              href="/"
-              className="text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
-            >
-              Расходы
-            </Link>
-            <Link
-              href="/dashboard"
-              className="text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
-            >
-              Дашборды
-            </Link>
-            {user === "Макс" && (
+        <div className="flex items-center gap-5 text-sm">
+          {/* Public page, not behind useAuthGuard — this link stays visible
+              regardless of login state so it's reachable without one. */}
+          <Link
+            href="/gold"
+            className="text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+          >
+            Gold Coin
+          </Link>
+          {user && (
+            <>
               <Link
-                href="/gold"
+                href="/"
                 className="text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
               >
-                Gold Coin
+                Расходы
               </Link>
-            )}
-            <span className="text-slate-400 dark:text-slate-500">
-              {user}
-            </span>
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="text-slate-600 hover:underline dark:text-slate-400"
-            >
-              Выйти
-            </button>
-          </div>
-        )}
+              <Link
+                href="/dashboard"
+                className="text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+              >
+                Дашборды
+              </Link>
+              <span className="text-slate-400 dark:text-slate-500">{user}</span>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="text-slate-600 hover:underline dark:text-slate-400"
+              >
+                Выйти
+              </button>
+            </>
+          )}
+        </div>
       </nav>
     </header>
   );

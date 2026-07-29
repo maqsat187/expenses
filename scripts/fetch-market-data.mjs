@@ -12,7 +12,7 @@
 // Every source is independent: one failing never aborts the others or the
 // build. Failures are recorded in the JSON with their reason so the page
 // can show what went wrong instead of silently rendering nothing.
-import { writeFile, mkdir } from "node:fs/promises";
+import { writeFile, mkdir, readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -20,6 +20,49 @@ const OUT_PATH = resolve(
   dirname(fileURLToPath(import.meta.url)),
   "../public/market-data.json",
 );
+// Unlike market-data.json (gitignored, rebuilt fresh every run), this file
+// is committed back to the repo by the workflow so daily prices accumulate
+// across runs instead of only ever holding the latest one.
+const HISTORY_PATH = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  "../public/gold-history.json",
+);
+const HISTORY_KEEP_DAYS = 40; // comfortably more than the 5 the page shows
+
+// Kazakhstan is UTC+5 year-round (no DST), so "today" for history purposes
+// is computed from that offset rather than the runner's UTC clock.
+function almatyDateString(date = new Date()) {
+  const shifted = new Date(date.getTime() + 5 * 60 * 60 * 1000);
+  return shifted.toISOString().slice(0, 10);
+}
+
+function isWeekday(isoDate) {
+  const day = new Date(`${isoDate}T00:00:00Z`).getUTCDay();
+  return day >= 1 && day <= 5;
+}
+
+async function updateGoldHistory(nbkGold) {
+  let history = { entries: [] };
+  try {
+    history = JSON.parse(await readFile(HISTORY_PATH, "utf8"));
+    if (!Array.isArray(history.entries)) history = { entries: [] };
+  } catch {
+    // No history yet (first run) — start fresh.
+  }
+
+  const today = almatyDateString();
+  if (nbkGold.status === "ok" && isWeekday(today)) {
+    // Replace, not append: the schedule runs every 30 minutes, so a run
+    // later in the day should update today's entry rather than duplicate it.
+    const withoutToday = history.entries.filter((e) => e.date !== today);
+    withoutToday.push({ date: today, nbkPricePerGram: nbkGold.pricePerGram });
+    withoutToday.sort((a, b) => a.date.localeCompare(b.date));
+    history.entries = withoutToday.slice(-HISTORY_KEEP_DAYS);
+  }
+
+  await writeFile(HISTORY_PATH, `${JSON.stringify(history, null, 2)}\n`);
+  return history;
+}
 
 // Some of these sites reject requests without a browser-like User-Agent.
 const UA =
@@ -58,7 +101,14 @@ function toPlainText(html) {
 
 function parseNumbers(text, min, max) {
   const found = [];
-  const pattern = /\d{1,3}(?:[\s\u00a0\u202f]?\d{3})*(?:[.,]\d{1,2})?/g;
+  // Two alternatives, tried in order: thousands-grouped ("61 889,33", the
+  // real site's format) first, then a plain contiguous run ("61889,33") as
+  // a fallback in case the grouping ever changes. An earlier version made
+  // the separator optional in a single pattern, which was ambiguous —
+  // greedy \d{1,3} could eat into a plain run before a grouped match got a
+  // chance, silently dropping ungrouped numbers instead of matching them.
+  const pattern =
+    /\d{1,3}(?:[\s  ]\d{3})+(?:[.,]\d{1,2})?|\d{4,6}(?:[.,]\d{1,2})?/g;
   for (const match of text.matchAll(pattern)) {
     const value = parseFloat(
       match[0].replace(/[\s\u00a0\u202f]/g, "").replace(",", "."),
@@ -256,4 +306,9 @@ const payload = {
 
 await mkdir(dirname(OUT_PATH), { recursive: true });
 await writeFile(OUT_PATH, `${JSON.stringify(payload, null, 2)}\n`);
-console.log(`\nЗаписано в ${OUT_PATH}`);
+console.log(`Записано в ${OUT_PATH}`);
+
+const history = await updateGoldHistory(nbkGold);
+console.log(
+  `Записано в ${HISTORY_PATH} (${history.entries.length} дн., последняя: ${history.entries.at(-1)?.date ?? "—"})`,
+);

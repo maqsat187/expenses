@@ -36,6 +36,19 @@ export function formatPercent(value: number): string {
   }).format(value)}%`;
 }
 
+// Explicit "+" for positive values (Intl already renders negatives with a
+// minus sign) — used where the sign itself is the point, e.g. day-over-day
+// price changes shown in green/red.
+export function formatSignedMoney(amount: number): string {
+  if (amount > 0) return `+${formatMoney(amount)}`;
+  return formatMoney(amount);
+}
+
+export function formatSignedPercent(value: number): string {
+  if (value > 0) return `+${formatPercent(value)}`;
+  return formatPercent(value);
+}
+
 export function formatDate(date: Date | string): string {
   const value = typeof date === "string" ? parseDateOnly(date) : date;
   return new Intl.DateTimeFormat("ru-RU", {
@@ -53,6 +66,18 @@ export function formatDateShort(date: Date | string): string {
   const month = String(value.getMonth() + 1).padStart(2, "0");
   const year = String(value.getFullYear()).slice(-2);
   return `${day}.${month}.${year}`;
+}
+
+// "29 июл, вт" for a "YYYY-MM-DD" input — used where the day of week
+// matters (gold price history, business-day forecasts).
+export function formatDateWithWeekday(date: Date | string): string {
+  const value = typeof date === "string" ? parseDateOnly(date) : date;
+  const dayMonth = new Intl.DateTimeFormat("ru-RU", {
+    day: "numeric",
+    month: "short",
+  }).format(value);
+  const weekday = new Intl.DateTimeFormat("ru-RU", { weekday: "short" }).format(value);
+  return `${dayMonth}, ${weekday}`;
 }
 
 export function formatMonth(yearMonth: string): string {
