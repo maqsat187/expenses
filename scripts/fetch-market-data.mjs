@@ -223,21 +223,32 @@ async function fetchNbkGold() {
   // unrelated historical dates elsewhere on the page: an archive link would
   // have to happen to name one of the last few real days, which archives by
   // definition don't.
+  //
+  // Tries both YYYY-MM-DD and DD.MM.YYYY: a later live run's matchedContext
+  // showed the page's actual price table uses ISO-style dates
+  // ("2026-07-29"), not the DD.MM.YYYY this originally assumed — that
+  // mismatch meant date-anchoring silently never matched at all and always
+  // fell through to the fallback strategy below (which happened to still
+  // land on the right number only because today's row comes first in the
+  // table). Both formats are tried since the exact layout isn't confirmed
+  // beyond that one capture.
   const todayAlmaty = almatyDateString();
   for (let back = 0; back <= DATE_LOOKBACK_DAYS; back++) {
-    const [y, m, d] = shiftIsoDate(todayAlmaty, -back).split("-");
-    const ddmmyyyy = `${d}.${m}.${y}`;
-    const index = text.indexOf(ddmmyyyy);
-    if (index === -1) continue;
-    const after = text.slice(index + ddmmyyyy.length);
-    const [hit] = parseNumbers(after, GOLD_KZT_MIN, GOLD_KZT_MAX);
-    if (hit) {
-      return {
-        pricePerGram: hit.value,
-        date: ddmmyyyy,
-        strategy: "date-anchored",
-        matchedContext: contextAround(text, index, ddmmyyyy.length),
-      };
+    const candidateIso = shiftIsoDate(todayAlmaty, -back);
+    const [y, m, d] = candidateIso.split("-");
+    for (const label of [candidateIso, `${d}.${m}.${y}`]) {
+      const index = text.indexOf(label);
+      if (index === -1) continue;
+      const after = text.slice(index + label.length);
+      const [hit] = parseNumbers(after, GOLD_KZT_MIN, GOLD_KZT_MAX);
+      if (hit) {
+        return {
+          pricePerGram: hit.value,
+          date: candidateIso,
+          strategy: "date-anchored",
+          matchedContext: contextAround(text, index, label.length),
+        };
+      }
     }
   }
 
