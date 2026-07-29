@@ -34,6 +34,14 @@ export function AppHeader() {
             >
               Дашборды
             </Link>
+            {user === "Макс" && (
+              <Link
+                href="/gold"
+                className="text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+              >
+                Gold Coin
+              </Link>
+            )}
             <span className="text-slate-400 dark:text-slate-500">
               {user}
             </span>
