@@ -1,8 +1,7 @@
-// Client-side fetches to free, keyless third-party gold-spot endpoints.
-// This app has no backend, so these calls run straight from the browser —
-// they only work if the source's server sends permissive CORS headers.
-// Neither source is official; treat the numbers as a starting point to
-// cross-check, not a settled quote.
+// Client-side fetch to a free, keyless gold-spot endpoint. This app has no
+// backend, so the call runs straight from the browser — it only works if
+// the source's server sends permissive CORS headers. Not an official quote;
+// treat it as a starting point to cross-check, not a settled price.
 export type SpotPriceResult =
   | {
       status: "ok";
@@ -12,14 +11,6 @@ export type SpotPriceResult =
       fetchedAt: string;
     }
   | { status: "error"; source: string; sourceUrl: string; message: string };
-
-async function fetchJson(url: string): Promise<unknown> {
-  const response = await fetch(url, { headers: { Accept: "application/json" } });
-  if (!response.ok) {
-    throw new Error(`Сервер ответил с ошибкой HTTP ${response.status}`);
-  }
-  return response.json();
-}
 
 function describeFetchError(err: unknown): string {
   if (err instanceof TypeError) {
@@ -33,9 +24,13 @@ export async function fetchGoldApiSpot(): Promise<SpotPriceResult> {
   const source = "Gold-API.com";
   const sourceUrl = "https://gold-api.com/";
   try {
-    const data = (await fetchJson("https://api.gold-api.com/price/XAU")) as {
-      price?: number;
-    };
+    const response = await fetch("https://api.gold-api.com/price/XAU", {
+      headers: { Accept: "application/json" },
+    });
+    if (!response.ok) {
+      throw new Error(`Сервер ответил с ошибкой HTTP ${response.status}`);
+    }
+    const data = (await response.json()) as { price?: number };
     const price = data.price;
     if (typeof price !== "number" || !Number.isFinite(price)) {
       throw new Error("Не удалось найти цену в ответе источника.");
@@ -52,25 +47,13 @@ export async function fetchGoldApiSpot(): Promise<SpotPriceResult> {
   }
 }
 
-export async function fetchGoldPriceOrgSpot(): Promise<SpotPriceResult> {
-  const source = "GoldPrice.org";
-  const sourceUrl = "https://goldprice.org/";
-  try {
-    const data = (await fetchJson(
-      "https://data-asg.goldprice.org/dbXRates/USD",
-    )) as { items?: { xauPrice?: number }[] };
-    const price = data.items?.[0]?.xauPrice;
-    if (typeof price !== "number" || !Number.isFinite(price)) {
-      throw new Error("Не удалось найти цену в ответе источника.");
-    }
-    return {
-      status: "ok",
-      source,
-      sourceUrl,
-      price,
-      fetchedAt: new Date().toISOString(),
-    };
-  } catch (err) {
-    return { status: "error", source, sourceUrl, message: describeFetchError(err) };
-  }
+// Troy ounce, the unit gold spot prices are quoted in.
+export const TROY_OUNCE_GRAMS = 31.1034768;
+
+export function goldPriceForGrams(
+  spotUsdPerOz: number,
+  usdKztRate: number,
+  grams: number,
+): number {
+  return (spotUsdPerOz / TROY_OUNCE_GRAMS) * usdKztRate * grams;
 }
