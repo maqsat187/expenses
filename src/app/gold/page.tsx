@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { fetchMarketData, formatSnapshotTime, type MarketDataResult } from "@/lib/marketData";
 import { fetchGoldApiSpot, type SpotPriceResult } from "@/lib/goldPrice";
+import { fetchKaseLive, type KaseLiveResult } from "@/lib/kaseRate";
 import { buildDailyGoldCoinSeries, nextBusinessDayIso, almatyNow } from "@/lib/goldHistory";
 import {
   formatMoney,
@@ -25,17 +26,21 @@ export default function GoldCoinPage() {
   const [loading, setLoading] = useState(false);
   const [market, setMarket] = useState<MarketDataResult | null>(null);
   const [liveSpot, setLiveSpot] = useState<SpotPriceResult | null>(null);
+  const [liveKase, setLiveKase] = useState<KaseLiveResult | null>(null);
 
   async function handleForecastClick() {
     setLoading(true);
     setMarket(null);
     setLiveSpot(null);
-    const [marketResult, spotResult] = await Promise.all([
+    setLiveKase(null);
+    const [marketResult, spotResult, kaseResult] = await Promise.all([
       fetchMarketData(),
       fetchGoldApiSpot(),
+      fetchKaseLive(),
     ]);
     setMarket(marketResult);
     setLiveSpot(spotResult);
+    setLiveKase(kaseResult);
     setLoading(false);
   }
 
@@ -52,9 +57,15 @@ export default function GoldCoinPage() {
   const snapshotGoldSpotOk = snapshot && snapshot.goldSpot.status === "ok" ? snapshot.goldSpot : null;
   const goldSpotPrice = liveGoldSpotOk?.price ?? snapshotGoldSpotOk?.price ?? null;
 
-  const kaseOk = snapshot && snapshot.kase.status === "ok" ? snapshot.kase : null;
+  // Same live-first pattern as the spot price above: use the browser's own
+  // reading when KASE allows it, otherwise the deploy-time snapshot.
+  const liveKaseOk = liveKase?.status === "ok" ? liveKase : null;
+  const snapshotKaseOk = snapshot && snapshot.kase.status === "ok" ? snapshot.kase : null;
+  const kaseSource = liveKaseOk ?? snapshotKaseOk;
+  const kaseRate = kaseSource?.averagePrice ?? null;
+
   const forecastPrice =
-    goldSpotPrice !== null && kaseOk ? (goldSpotPrice / 20) * kaseOk.averagePrice : null;
+    goldSpotPrice !== null && kaseRate !== null ? (goldSpotPrice / 20) * kaseRate : null;
 
   const diffAmount =
     forecastPrice !== null && latest ? forecastPrice - latest.goldCoinPrice : null;
@@ -197,16 +208,32 @@ export default function GoldCoinPage() {
                 <SourceCard
                   title="KASE — USDKZT_TOM, средневзвешенная цена"
                   href="https://kase.kz/ru/account/trades"
-                  value={kaseOk ? `${kaseOk.averagePrice.toFixed(2)} ₸` : null}
-                  error={snapshot.kase.status === "error" ? snapshot.kase.message : null}
+                  value={kaseRate !== null ? `${kaseRate.toFixed(2)} ₸` : null}
+                  error={
+                    kaseRate === null
+                      ? (snapshot.kase.status === "error" ? snapshot.kase.message : null) ??
+                        (liveKase?.status === "error" ? liveKase.message : null)
+                      : null
+                  }
                 >
-                  {kaseOk && (
-                    <p>
-                      {kaseOk.isRealtime
-                        ? "Данные в реальном времени."
-                        : "Данные с задержкой (анонимный доступ без входа в аккаунт KASE)."}
-                      {kaseOk.serverTime && ` Время биржи на момент запроса: ${kaseOk.serverTime}.`}
-                    </p>
+                  {kaseSource && (
+                    <>
+                      <p>
+                        {liveKaseOk
+                          ? "Живой запрос из браузера на момент нажатия кнопки."
+                          : `Из снэпшота (${formatSnapshotTime(snapshot.generatedAt)}) — живой запрос не прошёл.`}
+                      </p>
+                      {!liveKaseOk && liveKase?.status === "error" && (
+                        <p>{liveKase.message}</p>
+                      )}
+                      <p>
+                        {kaseSource.isRealtime
+                          ? "Данные в реальном времени."
+                          : "Данные с задержкой (анонимный доступ без входа в аккаунт KASE)."}
+                        {kaseSource.serverTime &&
+                          ` Время биржи на момент запроса: ${kaseSource.serverTime}.`}
+                      </p>
+                    </>
                   )}
                 </SourceCard>
                 <SourceCard
@@ -251,11 +278,10 @@ export default function GoldCoinPage() {
           </div>
           {snapshot && (
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              KASE и Нацбанк собраны {formatSnapshotTime(snapshot.generatedAt)}. Их нельзя
-              запросить напрямую из браузера, поэтому они обновляются на сервере: каждые 15 минут
-              в рабочие дни с 12:00 до 15:45 по Алматы (включая фиксинг 15:30), плюс один раз в
-              10:30. Вне этого окна цифры могут быть с прошлого запуска. Gold-API — живьём, в
-              момент нажатия кнопки.
+              Снэпшот собран {formatSnapshotTime(snapshot.generatedAt)} на сервере при деплое —
+              из него берутся цифры Нацбанка, а также KASE, если живой запрос не прошёл. Gold-API
+              и KASE запрашиваются живьём в момент нажатия кнопки; у каждого источника выше
+              написано, живая это цифра или из снэпшота.
             </p>
           )}
         </section>
