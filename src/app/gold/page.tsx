@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { fetchMarketData, formatSnapshotTime, type MarketDataResult } from "@/lib/marketData";
 import { buildDailyGoldCoinSeries, nextBusinessDayIso, almatyNow } from "@/lib/goldHistory";
@@ -10,8 +11,8 @@ import {
   formatSignedPercent,
   formatDateWithWeekday,
 } from "@/lib/format";
-import { isAdmin } from "@/lib/auth";
-import { useCurrentUser } from "@/lib/useCurrentUser";
+import { clearCurrentUser, isAdmin } from "@/lib/goldAuth";
+import { useGoldAuthGuard } from "@/lib/useGoldAuthGuard";
 
 const HISTORY_DAYS_SHOWN = 5;
 
@@ -23,9 +24,10 @@ function changeColorClass(value: number | null): string {
 }
 
 export default function GoldCoinPage() {
+  const router = useRouter();
+  const user = useGoldAuthGuard();
   const [loading, setLoading] = useState(false);
   const [market, setMarket] = useState<MarketDataResult | null>(null);
-  const currentUser = useCurrentUser();
 
   async function handleForecastClick() {
     setLoading(true);
@@ -52,18 +54,37 @@ export default function GoldCoinPage() {
 
   const nextBusinessDate = nextBusinessDayIso(almatyNow());
 
+  if (!user) {
+    return null;
+  }
+
   return (
     <div className="flex flex-col gap-10">
       <div className="flex items-start justify-between gap-4">
-        <h1 className="text-2xl font-semibold">Gold Coin</h1>
-        {isAdmin(currentUser) && (
-          <Link
-            href="/gold/visits"
-            className="shrink-0 rounded-md border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-900"
+        <div>
+          <h1 className="text-2xl font-semibold">Gold Coin</h1>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{user}</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-3">
+          {isAdmin(user) && (
+            <Link
+              href="/gold/visits"
+              className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-900"
+            >
+              История посещений
+            </Link>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              clearCurrentUser();
+              router.replace("/gold/login");
+            }}
+            className="text-sm text-slate-500 hover:underline dark:text-slate-400"
           >
-            История посещений
-          </Link>
-        )}
+            Выйти
+          </button>
+        </div>
       </div>
 
       <section className="flex flex-col gap-4">

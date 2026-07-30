@@ -21,8 +21,9 @@ export function AppHeader() {
           Expenses
         </Link>
         <div className="flex items-center gap-5 text-sm">
-          {/* Public page, not behind useAuthGuard — this link stays visible
-              regardless of login state so it's reachable without one. */}
+          {/* Visible regardless of the main app's login state — Gold Coin
+              has its own separate login (Фамилия/Имя/пароль), unrelated to
+              the Мика/Макс PIN gate below. */}
           <Link
             href="/gold"
             className="text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"

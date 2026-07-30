@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
-import { useAuthGuard } from "@/lib/useAuthGuard";
-import { isAdmin } from "@/lib/auth";
+import { useGoldAuthGuard } from "@/lib/useGoldAuthGuard";
+import { isAdmin } from "@/lib/goldAuth";
 import { formatSnapshotTime } from "@/lib/marketData";
 
 type Visit = {
@@ -17,7 +17,7 @@ type Visit = {
 };
 
 export default function VisitsPage() {
-  const user = useAuthGuard();
+  const user = useGoldAuthGuard();
   const [password, setPassword] = useState("");
   const [visits, setVisits] = useState<Visit[] | null>(null);
   const [error, setError] = useState<string | null>(null);

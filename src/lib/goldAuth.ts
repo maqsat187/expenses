@@ -1,32 +1,29 @@
-// NOTE: this app is a static site — everything here, including the PINs,
-// ships in the public JS bundle. This gate keeps casual visitors out; it is
-// not real security. Don't put anything sensitive behind it.
+// Separate login for the Gold Coin section only — independent of the main
+// app's Мика/Макс PIN login (src/lib/auth.ts). The current user here is a
+// "Фамилия Имя" string, checked server-side on login against an allowlist +
+// shared password (see /api/auth/login and src/lib/allowlist.ts, which
+// never ships to the browser). Uses its own localStorage keys so a Gold
+// Coin session and a main-app session don't overwrite each other.
 
-export type UserName = "Мика" | "Макс";
-
-export const USERS: UserName[] = ["Мика", "Макс"];
-
-const PINS: Record<UserName, string> = {
-  Мика: "2889",
-  Макс: "1239",
-};
-
-const STORAGE_KEY = "expenses:auth-user";
-const ACTIVITY_KEY = "expenses:auth-last-activity";
+const STORAGE_KEY = "gold:auth-user";
+const ACTIVITY_KEY = "gold:auth-last-activity";
 
 const listeners = new Set<() => void>();
 
-export function checkPin(user: UserName, pin: string): boolean {
-  return PINS[user] === pin;
+// The one person allowed to see the Gold Coin visit history. Compared
+// against the same formatted "Фамилия Имя" string login produces.
+const ADMIN_USER = "Жайсанбаев Максат";
+
+export function isAdmin(user: string | null): boolean {
+  return user === ADMIN_USER;
 }
 
-export function getCurrentUser(): UserName | null {
+export function getCurrentUser(): string | null {
   if (typeof window === "undefined") return null;
-  const value = window.localStorage.getItem(STORAGE_KEY);
-  return isUserName(value) ? value : null;
+  return window.localStorage.getItem(STORAGE_KEY);
 }
 
-export function setCurrentUser(user: UserName): void {
+export function setCurrentUser(user: string): void {
   window.localStorage.setItem(STORAGE_KEY, user);
   touchActivity();
   notify();
@@ -39,8 +36,8 @@ export function clearCurrentUser(): void {
 }
 
 // Records "the user did something just now", in localStorage so it's shared
-// across tabs and survives reloads (used by useIdleLogout to auto sign out
-// after a stretch of inactivity).
+// across tabs and survives reloads (used by useGoldIdleLogout to auto sign
+// out after a stretch of inactivity).
 export function touchActivity(): void {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(ACTIVITY_KEY, String(Date.now()));
@@ -56,7 +53,7 @@ export function getIdleMs(): number {
   return Number.isFinite(last) ? Date.now() - last : 0;
 }
 
-// Lets useCurrentUser() (useSyncExternalStore) re-render on login/logout.
+// Lets useGoldCurrentUser() (useSyncExternalStore) re-render on login/logout.
 export function subscribeCurrentUser(callback: () => void): () => void {
   listeners.add(callback);
   return () => listeners.delete(callback);
@@ -64,8 +61,4 @@ export function subscribeCurrentUser(callback: () => void): () => void {
 
 function notify(): void {
   listeners.forEach((callback) => callback());
-}
-
-function isUserName(value: string | null): value is UserName {
-  return value === "Мика" || value === "Макс";
 }
