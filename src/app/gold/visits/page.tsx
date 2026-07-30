@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
 import { useGoldAuthGuard } from "@/lib/useGoldAuthGuard";
 import { isAdmin } from "@/lib/goldAuth";
 import { formatSnapshotTime } from "@/lib/marketData";
@@ -18,10 +18,31 @@ type Visit = {
 
 export default function VisitsPage() {
   const user = useGoldAuthGuard();
-  const [password, setPassword] = useState("");
   const [visits, setVisits] = useState<Visit[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!user || !isAdmin(user)) return;
+
+    const [surname, name] = [user.split(" ")[0], user.split(" ").slice(1).join(" ")];
+
+    fetch("/api/auth/visits", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ surname, name }),
+    })
+      .then((response) => response.json())
+      .then((data) => {
+        if (data?.ok) {
+          setVisits(data.visits);
+        } else {
+          setError("Не удалось загрузить историю (сервер вернул ошибку)");
+        }
+      })
+      .catch(() => setError("Не удалось загрузить историю"));
+  }, [user]);
+
+  const loading = !visits && !error;
 
   if (!user) return null;
 
@@ -34,37 +55,6 @@ export default function VisitsPage() {
         </Link>
       </div>
     );
-  }
-
-  const [surname, name] = [user.split(" ")[0], user.split(" ").slice(1).join(" ")];
-
-  async function handleSubmit(event: FormEvent) {
-    event.preventDefault();
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await fetch("/api/auth/visits", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ surname, name, password }),
-      });
-      const data = (await response.json().catch(() => null)) as
-        | { ok: true; visits: Visit[] }
-        | { ok: false }
-        | null;
-
-      if (data?.ok) {
-        setVisits(data.visits);
-      } else if (response.status === 403) {
-        setError("Неверный пароль");
-      } else {
-        setError("Не удалось загрузить историю (сервер вернул ошибку)");
-      }
-    } catch {
-      setError("Не удалось загрузить историю");
-    } finally {
-      setLoading(false);
-    }
   }
 
   return (
@@ -84,30 +74,10 @@ export default function VisitsPage() {
         показаны IP-адрес, User-Agent и время каждой попытки входа.
       </p>
 
-      {visits === null ? (
-        <form onSubmit={handleSubmit} className="flex max-w-xs flex-col gap-3">
-          <label htmlFor="confirm-password" className="text-sm font-medium">
-            Подтвердите пароль
-          </label>
-          <input
-            id="confirm-password"
-            type="password"
-            autoComplete="off"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-            required
-          />
-          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
-          <button
-            type="submit"
-            disabled={loading}
-            className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
-          >
-            {loading ? "Загружаем…" : "Показать"}
-          </button>
-        </form>
-      ) : (
+      {loading && <p className="text-sm text-slate-500 dark:text-slate-400">Загружаем…</p>}
+      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+
+      {visits && (
         <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800">
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 text-slate-600 dark:bg-slate-900 dark:text-slate-400">
