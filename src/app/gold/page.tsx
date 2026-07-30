@@ -3,8 +3,6 @@
 import Link from "next/link";
 import { useState } from "react";
 import { fetchMarketData, formatSnapshotTime, type MarketDataResult } from "@/lib/marketData";
-import { fetchGoldApiSpot, type SpotPriceResult } from "@/lib/goldPrice";
-import { fetchKaseLive, type KaseLiveResult } from "@/lib/kaseRate";
 import { buildDailyGoldCoinSeries, nextBusinessDayIso, almatyNow } from "@/lib/goldHistory";
 import {
   formatMoney,
@@ -25,22 +23,11 @@ function changeColorClass(value: number | null): string {
 export default function GoldCoinPage() {
   const [loading, setLoading] = useState(false);
   const [market, setMarket] = useState<MarketDataResult | null>(null);
-  const [liveSpot, setLiveSpot] = useState<SpotPriceResult | null>(null);
-  const [liveKase, setLiveKase] = useState<KaseLiveResult | null>(null);
 
   async function handleForecastClick() {
     setLoading(true);
     setMarket(null);
-    setLiveSpot(null);
-    setLiveKase(null);
-    const [marketResult, spotResult, kaseResult] = await Promise.all([
-      fetchMarketData(),
-      fetchGoldApiSpot(),
-      fetchKaseLive(),
-    ]);
-    setMarket(marketResult);
-    setLiveSpot(spotResult);
-    setLiveKase(kaseResult);
+    setMarket(await fetchMarketData());
     setLoading(false);
   }
 
@@ -50,22 +37,10 @@ export default function GoldCoinPage() {
   const recentSeries = series ? series.slice(-HISTORY_DAYS_SHOWN) : null;
   const latest = series && series.length > 0 ? series[series.length - 1] : null;
 
-  // Gold-API allows cross-origin calls, so the live value (as of this
-  // click) is preferred; the deploy-time snapshot is only a fallback for
-  // when the live request fails.
-  const liveGoldSpotOk = liveSpot?.status === "ok" ? liveSpot : null;
-  const snapshotGoldSpotOk = snapshot && snapshot.goldSpot.status === "ok" ? snapshot.goldSpot : null;
-  const goldSpotPrice = liveGoldSpotOk?.price ?? snapshotGoldSpotOk?.price ?? null;
-
-  // Same live-first pattern as the spot price above: use the browser's own
-  // reading when KASE allows it, otherwise the deploy-time snapshot.
-  const liveKaseOk = liveKase?.status === "ok" ? liveKase : null;
-  const snapshotKaseOk = snapshot && snapshot.kase.status === "ok" ? snapshot.kase : null;
-  const kaseSource = liveKaseOk ?? snapshotKaseOk;
-  const kaseRate = kaseSource?.averagePrice ?? null;
-
+  const goldSpotOk = snapshot && snapshot.goldSpot.status === "ok" ? snapshot.goldSpot : null;
+  const kaseOk = snapshot && snapshot.kase.status === "ok" ? snapshot.kase : null;
   const forecastPrice =
-    goldSpotPrice !== null && kaseRate !== null ? (goldSpotPrice / 20) * kaseRate : null;
+    goldSpotOk && kaseOk ? (goldSpotOk.price / 20) * kaseOk.averagePrice : null;
 
   const diffAmount =
     forecastPrice !== null && latest ? forecastPrice - latest.goldCoinPrice : null;
@@ -176,7 +151,7 @@ export default function GoldCoinPage() {
         </section>
       )}
 
-      {(snapshot || liveSpot) && (
+      {snapshot && (
         <section className="flex flex-col gap-2">
           <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400">
             Исходные данные из источников
@@ -185,105 +160,60 @@ export default function GoldCoinPage() {
             <SourceCard
               title="Gold-API.com — золото, спот (USD/тройская унция)"
               href="https://gold-api.com/"
-              value={goldSpotPrice !== null ? `${goldSpotPrice.toFixed(2)} USD` : null}
-              error={
-                goldSpotPrice === null
-                  ? (liveSpot?.status === "error" ? liveSpot.message : null) ??
-                    (snapshot?.goldSpot.status === "error" ? snapshot.goldSpot.message : null)
-                  : null
-              }
+              value={goldSpotOk ? `${goldSpotOk.price.toFixed(2)} USD` : null}
+              error={snapshot.goldSpot.status === "error" ? snapshot.goldSpot.message : null}
+            />
+            <SourceCard
+              title="KASE — USDKZT_TOM, средневзвешенная цена"
+              href="https://kase.kz/ru/account/trades"
+              value={kaseOk ? `${kaseOk.averagePrice.toFixed(2)} ₸` : null}
+              error={snapshot.kase.status === "error" ? snapshot.kase.message : null}
             >
-              {goldSpotPrice !== null && (
+              {kaseOk && (
                 <p>
-                  {liveGoldSpotOk
-                    ? "Живой запрос из браузера на момент нажатия кнопки — этот источник разрешает CORS, в отличие от KASE и Нацбанка ниже."
-                    : snapshot
-                      ? `Живой запрос не прошёл — показана цена из снэпшота (${formatSnapshotTime(snapshot.generatedAt)}).`
-                      : null}
+                  {kaseOk.isRealtime
+                    ? "Данные в реальном времени."
+                    : "Данные с задержкой ~15 минут (анонимный доступ без входа в аккаунт KASE)."}
+                  {kaseOk.serverTime && ` Время биржи на момент запроса: ${kaseOk.serverTime}.`}
                 </p>
               )}
             </SourceCard>
-            {snapshot && (
-              <>
-                <SourceCard
-                  title="KASE — USDKZT_TOM, средневзвешенная цена"
-                  href="https://kase.kz/ru/account/trades"
-                  value={kaseRate !== null ? `${kaseRate.toFixed(2)} ₸` : null}
-                  error={
-                    kaseRate === null
-                      ? (snapshot.kase.status === "error" ? snapshot.kase.message : null) ??
-                        (liveKase?.status === "error" ? liveKase.message : null)
-                      : null
-                  }
-                >
-                  {kaseSource && (
-                    <>
-                      <p>
-                        {liveKaseOk
-                          ? "Живой запрос из браузера на момент нажатия кнопки."
-                          : `Из снэпшота (${formatSnapshotTime(snapshot.generatedAt)}) — живой запрос не прошёл.`}
-                      </p>
-                      {!liveKaseOk && liveKase?.status === "error" && (
-                        <p>{liveKase.message}</p>
-                      )}
-                      <p>
-                        {kaseSource.isRealtime
-                          ? "Данные в реальном времени."
-                          : "Данные с задержкой (анонимный доступ без входа в аккаунт KASE)."}
-                        {kaseSource.serverTime &&
-                          ` Время биржи на момент запроса: ${kaseSource.serverTime}.`}
-                      </p>
-                    </>
+            <SourceCard
+              title="Нацбанк РК — цена 1 г золота в тенге"
+              href="https://nationalbank.kz/ru/gold/zoloto"
+              value={nbkOk ? formatMoney(nbkOk.pricePerGram) : null}
+              error={snapshot.nbkGold.status === "error" ? snapshot.nbkGold.message : null}
+            >
+              {nbkOk && (
+                <>
+                  <p>
+                    {nbkOk.date
+                      ? `Дата на странице подтверждена: ${nbkOk.date}.`
+                      : "Дата на странице не подтвердилась — взято первое правдоподобное число, возможна погрешность."}
+                  </p>
+                  <p className="italic">Найдено на странице: «{nbkOk.matchedContext}»</p>
+                  {snapshot.crossCheck && (
+                    <p
+                      className={
+                        snapshot.crossCheck.looksConsistent
+                          ? ""
+                          : "font-medium text-amber-700 dark:text-amber-500"
+                      }
+                    >
+                      {snapshot.crossCheck.looksConsistent ? "Сходится" : "Не сходится"} с
+                      независимым расчётом из спота и курса KASE (
+                      {formatMoney(snapshot.crossCheck.expectedFromSpot)}/г, расхождение{" "}
+                      {snapshot.crossCheck.deviationPercent}%).
+                    </p>
                   )}
-                </SourceCard>
-                <SourceCard
-                  title="Нацбанк РК — цена 1 г золота в тенге"
-                  href="https://nationalbank.kz/ru/gold/zoloto"
-                  value={
-                    snapshot.nbkGold.status === "ok"
-                      ? formatMoney(snapshot.nbkGold.pricePerGram)
-                      : null
-                  }
-                  error={snapshot.nbkGold.status === "error" ? snapshot.nbkGold.message : null}
-                >
-                  {snapshot.nbkGold.status === "ok" && (
-                    <>
-                      <p>
-                        {snapshot.nbkGold.date
-                          ? `Дата на странице подтверждена: ${snapshot.nbkGold.date}.`
-                          : "Дата на странице не подтвердилась — взято первое правдоподобное число, возможна погрешность."}
-                      </p>
-                      <p className="italic">
-                        Найдено на странице: «{snapshot.nbkGold.matchedContext}»
-                      </p>
-                      {snapshot.crossCheck && (
-                        <p
-                          className={
-                            snapshot.crossCheck.looksConsistent
-                              ? ""
-                              : "font-medium text-amber-700 dark:text-amber-500"
-                          }
-                        >
-                          {snapshot.crossCheck.looksConsistent ? "Сходится" : "Не сходится"} с
-                          независимым расчётом из спота и курса KASE (
-                          {formatMoney(snapshot.crossCheck.expectedFromSpot)}/г, расхождение{" "}
-                          {snapshot.crossCheck.deviationPercent}%).
-                        </p>
-                      )}
-                    </>
-                  )}
-                </SourceCard>
-              </>
-            )}
+                </>
+              )}
+            </SourceCard>
           </div>
-          {snapshot && (
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Снэпшот собран {formatSnapshotTime(snapshot.generatedAt)} на сервере при деплое —
-              из него берутся цифры Нацбанка, а также KASE, если живой запрос не прошёл. Gold-API
-              и KASE запрашиваются живьём в момент нажатия кнопки; у каждого источника выше
-              написано, живая это цифра или из снэпшота.
-            </p>
-          )}
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Все три источника запрошены на сервере в {formatSnapshotTime(snapshot.generatedAt)} —
+            в момент нажатия кнопки, а не заранее. Нажмите ещё раз, чтобы обновить.
+          </p>
         </section>
       )}
     </div>

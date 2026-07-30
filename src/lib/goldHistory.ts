@@ -1,8 +1,8 @@
 // Pure helpers for the gold price history/forecast shown on the Gold Coin
-// page. The history data itself is embedded in market-data.json's
-// nbkGold.history (see scripts/fetch-market-data.mjs and marketData.ts) —
-// the National Bank's own page publishes several recent days in one table,
-// so a single fetch captures full history; nothing here fetches on its own.
+// page. The history data itself arrives as nbkGold.history from
+// /api/market-data (see marketSources.ts) — the National Bank's own page
+// publishes several recent days in one table, so a single server-side fetch
+// captures full history; nothing here fetches on its own.
 
 // "Gold Coin" here means 1/20 troy ounce (≈1.555 g) — the weight the
 // forecast formula on the page is built around (spot ÷ 20).

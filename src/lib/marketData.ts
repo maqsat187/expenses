@@ -1,13 +1,11 @@
-// Reads the snapshot produced by scripts/fetch-market-data.mjs during the
-// deploy workflow. It's served from this site's own origin, so there's no
-// cross-origin request and nothing for CORS to block — which is the whole
-// reason the data is collected server-side instead of fetched from kase.kz
-// and nationalbank.kz directly in the browser.
+// Client-side reader for /api/market-data — our own server route, which
+// fetches Gold-API, KASE and the National Bank server-side (see
+// marketSources.ts). Because the request goes to our own origin there's no
+// cross-origin call from the browser and nothing for CORS to block, which is
+// what makes KASE and the National Bank reachable at all.
 //
-// Refreshed by the workflow's schedule (concentrated on KASE's 12:00-15:45
-// Almaty window, plus a morning run), a push, or a manual trigger — so
-// outside that window this can be hours old. Every value is paired with
-// generatedAt and the UI shows it, so staleness stays visible.
+// Every value is therefore live as of the click, not a snapshot baked in at
+// deploy time; generatedAt records the moment the server did the fetching.
 export type SnapshotEntry<T> = ({ status: "ok" } & T) | { status: "error"; message: string };
 
 export type MarketData = {
@@ -24,13 +22,12 @@ export type MarketData = {
     strategy: string;
     matchedContext: string;
     // Several recent days parsed from the National Bank's own page in the
-    // same fetch, oldest first. Empty when the page's table wasn't found
-    // (the "first plausible number" fallback strategy has no history).
+    // same fetch, oldest first. Empty when the page's table wasn't found.
     history: { date: string; pricePerGram: number }[];
   }>;
-  // Present only when all three sources loaded: compares the National
-  // Bank's published gram price against the same figure derived from spot
-  // price and the KASE rate. Null when it couldn't be computed.
+  // Present only when all three sources loaded: compares the National Bank's
+  // published gram price against the same figure derived from spot price and
+  // the KASE rate. Null when it couldn't be computed.
   crossCheck: {
     expectedFromSpot: number;
     deviationPercent: number;
@@ -42,20 +39,9 @@ export type MarketDataResult =
   | { status: "ok"; data: MarketData }
   | { status: "error"; message: string };
 
-const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
-
 export async function fetchMarketData(): Promise<MarketDataResult> {
   try {
-    // cache: "no-store" so a redeploy's fresh numbers aren't masked by a
-    // previously cached copy of the file.
-    const response = await fetch(`${BASE_PATH}/market-data.json`, {
-      cache: "no-store",
-    });
-    if (response.status === 404) {
-      throw new Error(
-        "Файл с данными ещё не собран. Он создаётся при деплое — сделайте пуш в main или запустите workflow вручную.",
-      );
-    }
+    const response = await fetch("/api/market-data", { cache: "no-store" });
     if (!response.ok) {
       throw new Error(`Не удалось загрузить данные: HTTP ${response.status}`);
     }

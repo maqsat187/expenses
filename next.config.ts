@@ -1,24 +1,16 @@
 import type { NextConfig } from "next";
 
-// GitHub Pages serves this project site from /expenses (repo name), so the
-// build needs that base path baked in. Keep local `next dev` at the root by
-// only applying it inside GitHub Actions.
-const isGithubActions = process.env.GITHUB_ACTIONS === "true";
-const basePath = isGithubActions ? "/expenses" : "";
-
-const nextConfig: NextConfig = {
-  output: "export",
-  basePath,
-  assetPrefix: basePath ? `${basePath}/` : undefined,
-  // Client code fetches /market-data.json from the site's own origin, which
-  // sits under the base path on GitHub Pages. next/link and next/image get
-  // the prefix applied for them; a raw fetch() doesn't, so it's exposed
-  // here for the one place that needs it.
-  env: { NEXT_PUBLIC_BASE_PATH: basePath },
-  trailingSlash: true,
-  images: {
-    unoptimized: true,
-  },
-};
+// Hosted on Vercel, which runs Next.js with its server side intact — that's
+// what makes /api/market-data possible, and with it the live KASE and
+// National Bank data the Gold Coin page needs.
+//
+// This previously carried `output: "export"`, `basePath: "/expenses"` and
+// `assetPrefix` for GitHub Pages. Those are gone: a static export has no
+// server, which is exactly why that setup had to bake market data in at
+// deploy time and depend on a scheduler to refresh it.
+// `trailingSlash: true` is gone with them: it existed so the static export
+// produced directory-style URLs, and on a server it only added a 308
+// redirect hop in front of /api/market-data.
+const nextConfig: NextConfig = {};
 
 export default nextConfig;
