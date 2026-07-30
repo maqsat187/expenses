@@ -35,6 +35,8 @@ export default function VisitsPage() {
       .then((data) => {
         if (data?.ok) {
           setVisits(data.visits);
+        } else if (typeof data?.message === "string") {
+          setError(`Не удалось загрузить историю: ${data.message}`);
         } else {
           setError("Не удалось загрузить историю (сервер вернул ошибку)");
         }
