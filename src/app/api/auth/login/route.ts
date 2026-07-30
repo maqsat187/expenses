@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
 
   const match = checkCredentials(surname, name, password);
 
-  await logVisit(request, surname.trim(), name.trim(), match !== null);
+  await logVisit(request, "gold", surname.trim(), name.trim(), match !== null);
 
   if (!match) {
     // Deliberately generic — doesn't say whether the name or the password

@@ -9,12 +9,17 @@ import { formatSnapshotTime } from "@/lib/marketData";
 type Visit = {
   id: number;
   created_at: string;
+  system: "gold" | "expenses";
   surname: string;
   name: string;
   success: boolean;
   ip: string | null;
   user_agent: string | null;
 };
+
+function systemLabel(system: Visit["system"]): string {
+  return system === "expenses" ? "Расходы" : "Gold Coin";
+}
 
 export default function VisitsPage() {
   const user = useGoldAuthGuard();
@@ -72,8 +77,9 @@ export default function VisitsPage() {
       </div>
 
       <p className="text-xs text-slate-500 dark:text-slate-400">
-        MAC-адрес браузер сайту не сообщает — ни один сайт технически не может его узнать. Ниже
-        показаны IP-адрес, User-Agent и время каждой попытки входа.
+        Попытки входа и в Gold Coin, и в учёт расходов (Мика/Макс). MAC-адрес браузер сайту не
+        сообщает — ни один сайт технически не может его узнать. Ниже показаны IP-адрес,
+        User-Agent и время каждой попытки входа.
       </p>
 
       {loading && <p className="text-sm text-slate-500 dark:text-slate-400">Загружаем…</p>}
@@ -85,6 +91,7 @@ export default function VisitsPage() {
             <thead className="bg-slate-50 text-slate-600 dark:bg-slate-900 dark:text-slate-400">
               <tr>
                 <th className="px-3 py-2 font-medium">Время</th>
+                <th className="px-3 py-2 font-medium">Раздел</th>
                 <th className="px-3 py-2 font-medium">Фамилия Имя</th>
                 <th className="px-3 py-2 font-medium">Результат</th>
                 <th className="px-3 py-2 font-medium">IP</th>
@@ -97,8 +104,9 @@ export default function VisitsPage() {
                   <td className="px-3 py-2 whitespace-nowrap">
                     {formatSnapshotTime(visit.created_at)}
                   </td>
+                  <td className="px-3 py-2 whitespace-nowrap">{systemLabel(visit.system)}</td>
                   <td className="px-3 py-2">
-                    {visit.surname} {visit.name}
+                    {[visit.surname, visit.name].filter(Boolean).join(" ")}
                   </td>
                   <td className="px-3 py-2">
                     {visit.success ? (
@@ -115,7 +123,7 @@ export default function VisitsPage() {
               ))}
               {visits.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-3 py-4 text-center text-slate-500 dark:text-slate-400">
+                  <td colSpan={6} className="px-3 py-4 text-center text-slate-500 dark:text-slate-400">
                     Пока нет записей.
                   </td>
                 </tr>

@@ -30,7 +30,14 @@ export default function LoginPage() {
     setError(false);
 
     if (next.length === 4) {
-      if (checkPin(selectedUser, next)) {
+      const success = checkPin(selectedUser, next);
+      fetch("/api/auth/log-expenses-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user: selectedUser, success }),
+      }).catch(() => {});
+
+      if (success) {
         setCurrentUser(selectedUser);
         router.replace("/");
       } else {

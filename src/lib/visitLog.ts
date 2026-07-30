@@ -1,5 +1,8 @@
 // Server-only. Records login attempts (successful or not) to the Supabase
-// "visits" table, and reads them back for the admin history view.
+// "visits" table, and reads them back for the admin history view. Logs
+// attempts from both logins in this app — Gold Coin's Фамилия/Имя/пароль
+// form and the expense tracker's Мика/Макс PIN form — distinguished by
+// `system`, so one admin view can show both.
 //
 // A browser has no way to learn its own MAC address — no web API has ever
 // exposed it, on any browser, for privacy reasons enforced at the OS level.
@@ -9,9 +12,12 @@
 import type { NextRequest } from "next/server";
 import { supabase } from "@/lib/supabase";
 
+export type VisitSystem = "gold" | "expenses";
+
 export type VisitRecord = {
   id: number;
   created_at: string;
+  system: VisitSystem;
   surname: string;
   name: string;
   success: boolean;
@@ -29,12 +35,14 @@ function clientIp(request: NextRequest): string | null {
 // attempt itself, so errors are swallowed here rather than thrown.
 export async function logVisit(
   request: NextRequest,
+  system: VisitSystem,
   surname: string,
   name: string,
   success: boolean,
 ): Promise<void> {
   try {
     await supabase.from("visits").insert({
+      system,
       surname,
       name,
       success,
