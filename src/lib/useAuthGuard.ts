@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getCurrentUser, subscribeCurrentUser, type UserName } from "@/lib/auth";
+import { getCurrentUser, subscribeCurrentUser } from "@/lib/auth";
 import { useIdleLogout } from "@/lib/useIdleLogout";
 
 // Redirects to /login when nobody is signed in. Returns null while the
@@ -16,9 +16,9 @@ import { useIdleLogout } from "@/lib/useIdleLogout";
 // though their session is intact. Waiting for an explicit effect to run
 // (which only ever happens client-side, after mount) before deciding
 // "signed out" avoids that race.
-export function useAuthGuard(): UserName | null {
+export function useAuthGuard(): string | null {
   const router = useRouter();
-  const [user, setUser] = useState<UserName | null>(null);
+  const [user, setUser] = useState<string | null>(null);
   const [checked, setChecked] = useState(false);
 
   useEffect(() => {

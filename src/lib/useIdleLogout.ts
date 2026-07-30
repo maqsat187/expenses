@@ -2,12 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import {
-  clearCurrentUser,
-  getIdleMs,
-  touchActivity,
-  type UserName,
-} from "@/lib/auth";
+import { clearCurrentUser, getIdleMs, touchActivity } from "@/lib/auth";
 
 const IDLE_TIMEOUT_MS = 10 * 60 * 1000;
 const CHECK_INTERVAL_MS = 15_000;
@@ -19,7 +14,7 @@ const ACTIVITY_EVENTS = ["mousedown", "keydown", "touchstart", "scroll"] as cons
 // tabs and checked immediately on mount — returning after being away
 // longer than the timeout (including with the tab/browser closed) signs
 // out right away instead of granting a fresh window just for reopening it.
-export function useIdleLogout(user: UserName | null): void {
+export function useIdleLogout(user: string | null): void {
   const router = useRouter();
 
   useEffect(() => {

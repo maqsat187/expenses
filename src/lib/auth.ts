@@ -1,32 +1,30 @@
-// NOTE: this app is a static site — everything here, including the PINs,
-// ships in the public JS bundle. This gate keeps casual visitors out; it is
-// not real security. Don't put anything sensitive behind it.
-
-export type UserName = "Мика" | "Макс";
-
-export const USERS: UserName[] = ["Мика", "Макс"];
-
-const PINS: Record<UserName, string> = {
-  Мика: "2889",
-  Макс: "1239",
-};
+// The current user is a "Фамилия Имя" string (e.g. "Жайсанбаев Максат"),
+// checked server-side on login against an allowlist + shared password (see
+// /api/auth/login and src/lib/allowlist.ts, which never ships to the
+// browser). This app still has no real accounts/sessions though — once
+// logged in, the client just remembers who it was told it is. That's enough
+// to keep casual visitors out and to attribute expenses/visits to a name,
+// but don't rely on it for anything that must actually be tamper-proof.
 
 const STORAGE_KEY = "expenses:auth-user";
 const ACTIVITY_KEY = "expenses:auth-last-activity";
 
 const listeners = new Set<() => void>();
 
-export function checkPin(user: UserName, pin: string): boolean {
-  return PINS[user] === pin;
+// The one person allowed to see the Gold Coin visit history. Compared
+// against the same formatted "Фамилия Имя" string login produces.
+const ADMIN_USER = "Жайсанбаев Максат";
+
+export function isAdmin(user: string | null): boolean {
+  return user === ADMIN_USER;
 }
 
-export function getCurrentUser(): UserName | null {
+export function getCurrentUser(): string | null {
   if (typeof window === "undefined") return null;
-  const value = window.localStorage.getItem(STORAGE_KEY);
-  return isUserName(value) ? value : null;
+  return window.localStorage.getItem(STORAGE_KEY);
 }
 
-export function setCurrentUser(user: UserName): void {
+export function setCurrentUser(user: string): void {
   window.localStorage.setItem(STORAGE_KEY, user);
   touchActivity();
   notify();
@@ -64,8 +62,4 @@ export function subscribeCurrentUser(callback: () => void): () => void {
 
 function notify(): void {
   listeners.forEach((callback) => callback());
-}
-
-function isUserName(value: string | null): value is UserName {
-  return value === "Мика" || value === "Макс";
 }

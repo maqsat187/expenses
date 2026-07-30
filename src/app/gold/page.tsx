@@ -10,6 +10,8 @@ import {
   formatSignedPercent,
   formatDateWithWeekday,
 } from "@/lib/format";
+import { isAdmin } from "@/lib/auth";
+import { useCurrentUser } from "@/lib/useCurrentUser";
 
 const HISTORY_DAYS_SHOWN = 5;
 
@@ -23,6 +25,7 @@ function changeColorClass(value: number | null): string {
 export default function GoldCoinPage() {
   const [loading, setLoading] = useState(false);
   const [market, setMarket] = useState<MarketDataResult | null>(null);
+  const currentUser = useCurrentUser();
 
   async function handleForecastClick() {
     setLoading(true);
@@ -52,18 +55,15 @@ export default function GoldCoinPage() {
   return (
     <div className="flex flex-col gap-10">
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold">Gold Coin</h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Отдельный раздел, не связанный с расходами.
-          </p>
-        </div>
-        <Link
-          href="/"
-          className="shrink-0 rounded-md border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-900"
-        >
-          ← Расходы
-        </Link>
+        <h1 className="text-2xl font-semibold">Gold Coin</h1>
+        {isAdmin(currentUser) && (
+          <Link
+            href="/gold/visits"
+            className="shrink-0 rounded-md border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-900"
+          >
+            История посещений
+          </Link>
+        )}
       </div>
 
       <section className="flex flex-col gap-4">
