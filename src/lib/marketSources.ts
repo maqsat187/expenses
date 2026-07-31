@@ -11,6 +11,8 @@
 // are returned as data so the page can show what went wrong per source.
 import type { MarketData } from "@/lib/marketData";
 import { loadKaseSnapshot, saveKaseSnapshot } from "@/lib/kaseSnapshot";
+import { loadGoldPriceOverride } from "@/lib/nbkGoldOverride";
+import { almatyTodayIso } from "@/lib/goldHistory";
 
 // Some of these sites reject requests without a browser-like User-Agent.
 const UA =
@@ -202,7 +204,15 @@ function parseNbkHistoryRows(text: string) {
   return rows;
 }
 
-async function fetchNbkGold() {
+type NbkGoldResult = {
+  pricePerGram: number;
+  date: string | null;
+  strategy: string;
+  matchedContext: string;
+  history: { date: string; pricePerGram: number }[];
+};
+
+async function fetchNbkLive(): Promise<NbkGoldResult> {
   const response = await request("https://nationalbank.kz/ru/gold/zoloto");
   const text = toPlainText(await response.text());
 
@@ -245,6 +255,61 @@ async function fetchNbkGold() {
     matchedContext: contextAround(text, fallback.index, fallback.raw.length),
     history: [] as { date: string; pricePerGram: number }[],
   };
+}
+
+// The National Bank typically publishes each day's gold price after the
+// fact, so "today" is often still missing from their page during the day.
+// When it is, this falls back to a manually entered value for today (see
+// nbkGoldOverride.ts) — merged in alongside whatever live history was
+// fetched, or used alone if the live fetch failed outright. A live value
+// for today always wins over the override once the National Bank actually
+// publishes it, so nothing needs to be cleared by hand.
+async function fetchNbkGold(): Promise<NbkGoldResult> {
+  const todayIso = almatyTodayIso();
+
+  let live: NbkGoldResult | null = null;
+  let liveError: unknown = null;
+  try {
+    live = await fetchNbkLive();
+  } catch (err) {
+    liveError = err;
+  }
+
+  const hasToday = live?.history.some((entry) => entry.date === todayIso) ?? false;
+
+  if (!hasToday) {
+    const override = await loadGoldPriceOverride(todayIso);
+    if (override) {
+      const history = [
+        ...(live?.history.filter((entry) => entry.date !== todayIso) ?? []),
+        { date: todayIso, pricePerGram: override.pricePerGram },
+      ].sort((a, b) => a.date.localeCompare(b.date));
+
+      return {
+        pricePerGram: override.pricePerGram,
+        date: todayIso,
+        strategy: "manual-override",
+        matchedContext: `Введено вручную (${override.enteredBy}, ${formatAlmatyDateTime(override.enteredAt)}).`,
+        history,
+      };
+    }
+  }
+
+  if (live) return live;
+  throw liveError instanceof Error ? liveError : new Error(String(liveError));
+}
+
+function formatAlmatyDateTime(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return new Intl.DateTimeFormat("ru-RU", {
+    timeZone: "Asia/Almaty",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
 }
 
 // Independent sanity check: gold spot converted through the KASE rate should

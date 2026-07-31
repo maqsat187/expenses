@@ -50,6 +50,12 @@ export function almatyNow(): Date {
   return new Date(now.getTime() + 5 * 60 * 60 * 1000);
 }
 
+// Today's date in Almaty, as "YYYY-MM-DD" — matches the format nbkGold's
+// history entries use, so it can be compared against them directly.
+export function almatyTodayIso(): string {
+  return almatyNow().toISOString().slice(0, 10);
+}
+
 // Next weekday after `from`. Public holidays specific to Kazakhstan (Nauryz,
 // Kurban Ait, etc.) aren't accounted for — those shift year to year and
 // would need a maintained list; this only skips Saturday/Sunday.

@@ -18,6 +18,16 @@ export function isAdmin(user: string | null): boolean {
   return user === ADMIN_USER;
 }
 
+// The people allowed to manually enter today's gold price when the
+// National Bank's page hasn't published it yet. Same trust model as
+// isAdmin — checked here (safe on both client and server, no "use client")
+// and re-checked server-side in /api/gold/nbk-override.
+const GOLD_PRICE_EDITORS = new Set(["Жайсанбаев Максат", "Усипбаев Самат"]);
+
+export function canEditGoldPrice(user: string | null): boolean {
+  return user !== null && GOLD_PRICE_EDITORS.has(user);
+}
+
 export function getCurrentUser(): string | null {
   if (typeof window === "undefined") return null;
   return window.localStorage.getItem(STORAGE_KEY);

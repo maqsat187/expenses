@@ -4,14 +4,20 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { fetchMarketData, formatSnapshotTime, type MarketDataResult } from "@/lib/marketData";
-import { buildDailyGoldCoinSeries, nextBusinessDayIso, almatyNow } from "@/lib/goldHistory";
+import {
+  buildDailyGoldCoinSeries,
+  nextBusinessDayIso,
+  almatyNow,
+  almatyTodayIso,
+  GOLD_COIN_GRAMS,
+} from "@/lib/goldHistory";
 import {
   formatMoney,
   formatSignedMoney,
   formatSignedPercent,
   formatDateWithWeekday,
 } from "@/lib/format";
-import { clearCurrentUser, isAdmin } from "@/lib/goldAuth";
+import { clearCurrentUser, isAdmin, canEditGoldPrice } from "@/lib/goldAuth";
 import { useGoldAuthGuard } from "@/lib/useGoldAuthGuard";
 
 const HISTORY_DAYS_SHOWN = 5;
@@ -53,6 +59,11 @@ export default function GoldCoinPage() {
     diffAmount !== null && latest ? (diffAmount / latest.goldCoinPrice) * 100 : null;
 
   const nextBusinessDate = nextBusinessDayIso(almatyNow());
+
+  const todayIso = almatyTodayIso();
+  const nbkHasLiveToday = nbkOk?.date === todayIso && nbkOk.strategy === "table-rows";
+  const nbkManualValue =
+    nbkOk?.strategy === "manual-override" ? nbkOk.pricePerGram * GOLD_COIN_GRAMS : null;
 
   if (!user) {
     return null;
@@ -141,6 +152,14 @@ export default function GoldCoinPage() {
                 : "На странице Нацбанка не нашли таблицу истории в этот раз — доступна только текущая цена (ниже, в исходных данных)."}
             </p>
           )}
+          {canEditGoldPrice(user) && !nbkHasLiveToday && (
+            <NbkOverrideForm
+              user={user}
+              todayIso={todayIso}
+              currentValue={nbkManualValue}
+              onSaved={handleForecastClick}
+            />
+          )}
         </section>
       )}
 
@@ -217,12 +236,20 @@ export default function GoldCoinPage() {
             >
               {nbkOk && (
                 <>
-                  <p>
-                    {nbkOk.date
-                      ? `Дата на странице подтверждена: ${nbkOk.date}.`
-                      : "Дата на странице не подтвердилась — взято первое правдоподобное число, возможна погрешность."}
-                  </p>
-                  <p className="italic">Найдено на странице: «{nbkOk.matchedContext}»</p>
+                  {nbkOk.strategy === "manual-override" ? (
+                    <p className="font-medium text-amber-700 dark:text-amber-500">
+                      {nbkOk.matchedContext}
+                    </p>
+                  ) : (
+                    <>
+                      <p>
+                        {nbkOk.date
+                          ? `Дата на странице подтверждена: ${nbkOk.date}.`
+                          : "Дата на странице не подтвердилась — взято первое правдоподобное число, возможна погрешность."}
+                      </p>
+                      <p className="italic">Найдено на странице: «{nbkOk.matchedContext}»</p>
+                    </>
+                  )}
                   {snapshot.crossCheck && (
                     <p
                       className={
@@ -284,5 +311,91 @@ function SourceCard({
       {error && <p>{error}</p>}
       {children}
     </div>
+  );
+}
+
+function NbkOverrideForm({
+  user,
+  todayIso,
+  currentValue,
+  onSaved,
+}: {
+  user: string;
+  todayIso: string;
+  currentValue: number | null;
+  onSaved: () => void;
+}) {
+  const [value, setValue] = useState(
+    currentValue !== null ? String(Math.round(currentValue)) : "",
+  );
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    const coinPrice = Number(value);
+    if (!Number.isFinite(coinPrice) || coinPrice <= 0) {
+      setError("Введите цену числом больше нуля.");
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    const surname = user.split(" ")[0];
+    const name = user.split(" ").slice(1).join(" ");
+
+    try {
+      const response = await fetch("/api/gold/nbk-override", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ surname, name, date: todayIso, coinPrice }),
+      });
+      const data = await response.json().catch(() => null);
+      if (data?.ok) {
+        onSaved();
+      } else {
+        setError(typeof data?.message === "string" ? data.message : "Не удалось сохранить.");
+      }
+    } catch {
+      setError("Не удалось сохранить.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      className="flex flex-wrap items-end gap-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-800 dark:bg-amber-950"
+    >
+      <div className="flex flex-col gap-1">
+        <label
+          htmlFor="nbk-override-price"
+          className="text-xs font-medium text-amber-800 dark:text-amber-300"
+        >
+          {currentValue !== null
+            ? "Данных Нацбанка за сегодня всё ещё нет — обновить введённую вручную цену (₸ за монету, 1,555 г):"
+            : "Данных Нацбанка за сегодня ещё нет — ввести цену вручную (₸ за монету, 1,555 г):"}
+        </label>
+        <input
+          id="nbk-override-price"
+          type="number"
+          min="0"
+          step="1"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          className="w-40 rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+          required
+        />
+      </div>
+      <button
+        type="submit"
+        disabled={saving}
+        className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+      >
+        {saving ? "Сохраняем…" : "Сохранить"}
+      </button>
+      {error && <p className="w-full text-sm text-red-600 dark:text-red-400">{error}</p>}
+    </form>
   );
 }
