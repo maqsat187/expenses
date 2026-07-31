@@ -9,7 +9,7 @@ import {
   type UserName,
 } from "@/lib/auth";
 
-const IDLE_TIMEOUT_MS = 10 * 60 * 1000;
+const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 const CHECK_INTERVAL_MS = 15_000;
 const TOUCH_THROTTLE_MS = 10_000;
 const ACTIVITY_EVENTS = ["mousedown", "keydown", "touchstart", "scroll"] as const;
