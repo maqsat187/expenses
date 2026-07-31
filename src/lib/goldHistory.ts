@@ -56,6 +56,14 @@ export function almatyTodayIso(): string {
   return almatyNow().toISOString().slice(0, 10);
 }
 
+// Adds (or subtracts) calendar days to a "YYYY-MM-DD" string. JS's Date
+// constructor normalizes out-of-range day-of-month values itself, so this
+// works across month/year boundaries without extra logic.
+export function addDaysIso(dateIso: string, days: number): string {
+  const [year, month, day] = dateIso.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
+}
+
 // Next weekday after `from`. Public holidays specific to Kazakhstan (Nauryz,
 // Kurban Ait, etc.) aren't accounted for — those shift year to year and
 // would need a maintained list; this only skips Saturday/Sunday.

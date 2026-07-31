@@ -19,6 +19,7 @@ import {
 } from "@/lib/format";
 import { clearCurrentUser, isAdmin, canEditGoldPrice } from "@/lib/goldAuth";
 import { useGoldAuthGuard } from "@/lib/useGoldAuthGuard";
+import { GoldPurchaseLimits } from "@/components/GoldPurchaseLimits";
 
 const HISTORY_DAYS_SHOWN = 5;
 
@@ -274,6 +275,8 @@ export default function GoldCoinPage() {
           </p>
         </section>
       )}
+
+      {isAdmin(user) && <GoldPurchaseLimits user={user} />}
     </div>
   );
 }
