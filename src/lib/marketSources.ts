@@ -10,6 +10,7 @@
 // Every source is independent: one failing never fails the others. Failures
 // are returned as data so the page can show what went wrong per source.
 import type { MarketData } from "@/lib/marketData";
+import { loadKaseSnapshot, saveKaseSnapshot } from "@/lib/kaseSnapshot";
 
 // Some of these sites reject requests without a browser-like User-Agent.
 const UA =
@@ -97,7 +98,7 @@ async function fetchGoldSpot() {
 // Two-step flow: fetch a CSRF token, then POST to the quote-monitor
 // endpoint. Node's fetch has no cookie jar, so the session cookies from step
 // one are forwarded to step two by hand.
-async function fetchKaseAverage() {
+async function fetchKaseLive() {
   const tokenResponse = await request("https://kase.kz/api/accounts/get_token/", {
     headers: { Accept: "application/json" },
   });
@@ -149,6 +150,32 @@ async function fetchKaseAverage() {
     isRealtime: Boolean(data.is_realtime),
     serverTime: data.server_time ?? null,
   };
+}
+
+// Wraps fetchKaseLive with a fallback to the last successfully fetched
+// value (see kaseSnapshot.ts) for when KASE has nothing right now — most
+// commonly outside the ~10:30+ Almaty trading session, when there's no
+// average price for the day yet.
+async function fetchKaseAverage() {
+  try {
+    const live = await fetchKaseLive();
+    await saveKaseSnapshot(live);
+    return { ...live, stale: false, asOf: new Date().toISOString() };
+  } catch (err) {
+    const snapshot = await loadKaseSnapshot();
+    if (snapshot) {
+      return {
+        averagePrice: snapshot.averagePrice,
+        isRealtime: snapshot.isRealtime,
+        serverTime: snapshot.serverTime,
+        stale: true,
+        asOf: snapshot.fetchedAt,
+      };
+    }
+    throw new Error(
+      `${errorMessage(err)} Сохранённых данных с прошлого раза тоже нет — попробуйте позже, в течение торговой сессии (с 10:30 по Алматы).`,
+    );
+  }
 }
 
 // --- National Bank of Kazakhstan: gold per gram, several days -------------

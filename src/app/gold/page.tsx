@@ -191,11 +191,21 @@ export default function GoldCoinPage() {
               error={snapshot.kase.status === "error" ? snapshot.kase.message : null}
             >
               {kaseOk && (
-                <p>
-                  {kaseOk.isRealtime
-                    ? "Данные в реальном времени."
-                    : "Данные с задержкой ~15 минут (анонимный доступ без входа в аккаунт KASE)."}
-                  {kaseOk.serverTime && ` Время биржи на момент запроса: ${kaseOk.serverTime}.`}
+                <p className={kaseOk.stale ? "font-medium text-amber-700 dark:text-amber-500" : ""}>
+                  {kaseOk.stale ? (
+                    <>
+                      Свежих данных нет — показана последняя известная цена от{" "}
+                      {formatSnapshotTime(kaseOk.asOf)}. Попробуйте позже, в течение торговой
+                      сессии (с 10:30 по Алматы).
+                    </>
+                  ) : (
+                    <>
+                      {kaseOk.isRealtime
+                        ? "Данные в реальном времени."
+                        : "Данные с задержкой ~15 минут (анонимный доступ без входа в аккаунт KASE)."}
+                      {kaseOk.serverTime && ` Время биржи на момент запроса: ${kaseOk.serverTime}.`}
+                    </>
+                  )}
                 </p>
               )}
             </SourceCard>

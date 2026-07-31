@@ -15,6 +15,11 @@ export type MarketData = {
     averagePrice: number;
     isRealtime: boolean;
     serverTime: string | null;
+    // true when KASE had nothing to report right now (e.g. outside the
+    // trading session) and this is the last successfully fetched value
+    // instead — asOf is when that value actually came from KASE.
+    stale: boolean;
+    asOf: string;
   }>;
   nbkGold: SnapshotEntry<{
     pricePerGram: number;
