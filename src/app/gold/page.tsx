@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { fetchMarketData, formatSnapshotTime, type MarketDataResult } from "@/lib/marketData";
 import {
   buildDailyGoldCoinSeries,
@@ -35,6 +35,23 @@ export default function GoldCoinPage() {
   const user = useGoldAuthGuard();
   const [loading, setLoading] = useState(false);
   const [market, setMarket] = useState<MarketDataResult | null>(null);
+  const [excelUrl, setExcelUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user || !isAdmin(user)) return;
+    const surname = user.split(" ")[0];
+    const name = user.split(" ").slice(1).join(" ");
+    fetch("/api/gold/excel-link", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ surname, name }),
+    })
+      .then((response) => response.json())
+      .then((data) => {
+        if (data?.ok) setExcelUrl(data.url);
+      })
+      .catch(() => {});
+  }, [user]);
 
   async function handleForecastClick() {
     setLoading(true);
@@ -85,6 +102,16 @@ export default function GoldCoinPage() {
             >
               История посещений
             </Link>
+          )}
+          {excelUrl && (
+            <a
+              href={excelUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-900"
+            >
+              Учёт Gold Coin в Excel
+            </a>
           )}
           <button
             type="button"
