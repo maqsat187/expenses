@@ -6,6 +6,8 @@
 // they'll type it (comparison trims whitespace and ignores case, but the
 // words themselves must match).
 
+import { getCustomPassword, verifyCustomPassword } from "@/lib/goldPasswords";
+
 export type Identity = { surname: string; name: string };
 
 export const ALLOWED_USERS: Identity[] = [
@@ -26,6 +28,8 @@ export const ALLOWED_USERS: Identity[] = [
   { surname: "Айткулов", name: "Арман" },
 ];
 
+// Default for anyone who hasn't set their own password yet (see
+// goldPasswords.ts / /api/gold/change-password).
 export const SHARED_PASSWORD = "Gold2026";
 
 function normalize(value: string): string {
@@ -33,18 +37,24 @@ function normalize(value: string): string {
 }
 
 // Returns the matched (canonically-spelled) identity, or null if the
-// password is wrong or the surname+name pair isn't on the list.
-export function checkCredentials(
+// surname+name pair isn't on the list or the password doesn't match —
+// their own custom password if they've set one, otherwise the shared
+// default.
+export async function checkCredentials(
   surname: string,
   name: string,
   password: string,
-): Identity | null {
-  if (password !== SHARED_PASSWORD) return null;
-  return (
-    ALLOWED_USERS.find(
-      (u) => normalize(u.surname) === normalize(surname) && normalize(u.name) === normalize(name),
-    ) ?? null
+): Promise<Identity | null> {
+  const match = ALLOWED_USERS.find(
+    (u) => normalize(u.surname) === normalize(surname) && normalize(u.name) === normalize(name),
   );
+  if (!match) return null;
+
+  const custom = await getCustomPassword(match.surname, match.name);
+  if (custom) {
+    return verifyCustomPassword(password, custom.salt, custom.hash) ? match : null;
+  }
+  return password === SHARED_PASSWORD ? match : null;
 }
 
 export function formatIdentity(id: Identity): string {

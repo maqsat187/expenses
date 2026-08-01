@@ -113,6 +113,12 @@ export default function GoldCoinPage() {
               Учёт Gold Coin в Excel
             </a>
           )}
+          <Link
+            href="/gold/change-password"
+            className="text-sm text-slate-500 hover:underline dark:text-slate-400"
+          >
+            Сменить пароль
+          </Link>
           <button
             type="button"
             onClick={() => {

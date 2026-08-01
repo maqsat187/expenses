@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
   const name = typeof body?.name === "string" ? body.name : "";
   const password = typeof body?.password === "string" ? body.password : "";
 
-  const match = checkCredentials(surname, name, password);
+  const match = await checkCredentials(surname, name, password);
 
   await logVisit(request, "gold", surname.trim(), name.trim(), match !== null);
 
