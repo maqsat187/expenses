@@ -32,7 +32,9 @@ export function AppHeader() {
             Expenses
           </Link>
         ) : (
-          <span className="text-base font-semibold">Expenses</span>
+          // Empty but present: nav uses justify-between, so dropping this
+          // element entirely would shift "Gold Coin" etc. to the left.
+          <span aria-hidden="true" />
         )}
         <div className="flex items-center gap-5 text-sm">
           {/* Visible regardless of the main app's login state — Gold Coin
