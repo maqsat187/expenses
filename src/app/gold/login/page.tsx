@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { setCurrentUser } from "@/lib/goldAuth";
@@ -114,10 +113,6 @@ export default function GoldLoginPage() {
           {submitting ? "Проверяем…" : "Войти"}
         </button>
       </form>
-
-      <Link href="/" className="text-sm text-slate-500 hover:underline dark:text-slate-400">
-        ← Expenses
-      </Link>
     </div>
   );
 }
