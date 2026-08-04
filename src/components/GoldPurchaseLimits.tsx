@@ -46,16 +46,26 @@ export function GoldPurchaseLimits({ user }: { user: string }) {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editQuantity, setEditQuantity] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  function refresh() {
+    return loadPurchases(surname, name).then((data) => {
+      if (data?.ok) {
+        setEntries(data.purchases);
+        return true;
+      }
+      return false;
+    });
+  }
+
   useEffect(() => {
-    loadPurchases(surname, name)
-      .then((data) => {
-        if (data?.ok) {
-          setEntries(data.purchases);
-        } else {
-          setLoadError("Не удалось загрузить лимиты.");
-        }
-      })
-      .catch(() => setLoadError("Не удалось загрузить лимиты."));
+    refresh().then((ok) => {
+      if (!ok) setLoadError("Не удалось загрузить лимиты.");
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [surname, name]);
 
   async function handleSubmit(event: FormEvent) {
@@ -77,8 +87,7 @@ export function GoldPurchaseLimits({ user }: { user: string }) {
       const data = await response.json().catch(() => null);
       if (data?.ok) {
         setQuantity("");
-        const refreshed = await loadPurchases(surname, name);
-        if (refreshed?.ok) setEntries(refreshed.purchases);
+        await refresh();
       } else {
         setFormError(typeof data?.message === "string" ? data.message : "Не удалось сохранить.");
       }
@@ -86,6 +95,46 @@ export function GoldPurchaseLimits({ user }: { user: string }) {
       setFormError("Не удалось сохранить.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  function startEdit(entry: PurchaseEntry) {
+    setEditingId(entry.id);
+    setEditQuantity(String(entry.quantity));
+    setEditError(null);
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditError(null);
+  }
+
+  async function saveEdit(id: number) {
+    const qty = Number(editQuantity);
+    if (!Number.isInteger(qty) || qty <= 0) {
+      setEditError("Введите количество монет числом больше нуля.");
+      return;
+    }
+
+    setEditSaving(true);
+    setEditError(null);
+    try {
+      const response = await fetch("/api/gold/purchase-limits/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ surname, name, id, quantity: qty }),
+      });
+      const data = await response.json().catch(() => null);
+      if (data?.ok) {
+        setEditingId(null);
+        await refresh();
+      } else {
+        setEditError(typeof data?.message === "string" ? data.message : "Не удалось сохранить.");
+      }
+    } catch {
+      setEditError("Не удалось сохранить.");
+    } finally {
+      setEditSaving(false);
     }
   }
 
@@ -115,21 +164,66 @@ export function GoldPurchaseLimits({ user }: { user: string }) {
                 <th className="px-3 py-2 text-right font-medium">Монет</th>
                 <th className="px-3 py-2 font-medium">Дата покупки</th>
                 <th className="px-3 py-2 font-medium">Освобождение лимита</th>
+                <th className="px-3 py-2 font-medium">Действия</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
               {sorted.map((entry) => (
                 <tr key={entry.id} className={rowClass(entry.releaseDate, todayIso)}>
                   <td className="px-3 py-2">{entry.person}</td>
-                  <td className="px-3 py-2 text-right">{entry.quantity}</td>
+                  <td className="px-3 py-2 text-right">
+                    {editingId === entry.id ? (
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={editQuantity}
+                        onChange={(e) => setEditQuantity(e.target.value)}
+                        className="w-20 rounded-md border border-slate-300 px-2 py-1 text-right text-sm dark:border-slate-700 dark:bg-slate-900"
+                        autoFocus
+                      />
+                    ) : (
+                      entry.quantity
+                    )}
+                  </td>
                   <td className="px-3 py-2">{formatDateWithWeekday(entry.purchaseDate)}</td>
                   <td className="px-3 py-2">{formatDateWithWeekday(entry.releaseDate)}</td>
+                  <td className="px-3 py-2">
+                    {editingId === entry.id ? (
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => saveEdit(entry.id)}
+                          disabled={editSaving}
+                          className="text-slate-700 hover:underline disabled:opacity-50 dark:text-slate-300"
+                        >
+                          {editSaving ? "Сохраняем…" : "Сохранить"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={cancelEdit}
+                          disabled={editSaving}
+                          className="text-slate-500 hover:underline disabled:opacity-50 dark:text-slate-400"
+                        >
+                          Отмена
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => startEdit(entry)}
+                        className="text-slate-500 hover:underline dark:text-slate-400"
+                      >
+                        Изменить
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
               {sorted.length === 0 && (
                 <tr>
                   <td
-                    colSpan={4}
+                    colSpan={5}
                     className="px-3 py-4 text-center text-slate-500 dark:text-slate-400"
                   >
                     Пока нет записей.
@@ -140,6 +234,7 @@ export function GoldPurchaseLimits({ user }: { user: string }) {
           </table>
         </div>
       )}
+      {editError && <p className="text-sm text-red-600 dark:text-red-400">{editError}</p>}
 
       <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-3 text-sm">
         <div className="flex flex-col gap-1">
