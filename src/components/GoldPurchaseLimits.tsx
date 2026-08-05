@@ -51,6 +51,8 @@ export function GoldPurchaseLimits({ user }: { user: string }) {
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+
   function refresh() {
     return loadPurchases(surname, name).then((data) => {
       if (data?.ok) {
@@ -138,6 +140,29 @@ export function GoldPurchaseLimits({ user }: { user: string }) {
     }
   }
 
+  async function handleDelete(id: number) {
+    if (!confirm("Удалить эту запись?")) return;
+    setDeletingId(id);
+    setEditError(null);
+    try {
+      const response = await fetch("/api/gold/purchase-limits/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ surname, name, id }),
+      });
+      const data = await response.json().catch(() => null);
+      if (data?.ok) {
+        await refresh();
+      } else {
+        alert(typeof data?.message === "string" ? data.message : "Не удалось удалить запись.");
+      }
+    } catch {
+      alert("Не удалось удалить запись.");
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   const todayIso = almatyTodayIso();
   const sorted = entries
     ? [...entries].sort((a, b) => a.releaseDate.localeCompare(b.releaseDate))
@@ -209,13 +234,23 @@ export function GoldPurchaseLimits({ user }: { user: string }) {
                         </button>
                       </div>
                     ) : (
-                      <button
-                        type="button"
-                        onClick={() => startEdit(entry)}
-                        className="text-slate-500 hover:underline dark:text-slate-400"
-                      >
-                        Изменить
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => startEdit(entry)}
+                          className="text-slate-500 hover:underline dark:text-slate-400"
+                        >
+                          Изменить
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(entry.id)}
+                          disabled={deletingId === entry.id}
+                          className="text-red-600 hover:underline disabled:opacity-50 dark:text-red-400"
+                        >
+                          {deletingId === entry.id ? "Удаляем…" : "Удалить"}
+                        </button>
+                      </div>
                     )}
                   </td>
                 </tr>

@@ -45,6 +45,11 @@ export async function updatePurchaseQuantity(id: number, quantity: number): Prom
   if (error) throw new Error(error.message);
 }
 
+export async function deletePurchase(id: number): Promise<void> {
+  const { error } = await supabase.from("gold_purchase_limits").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
 export async function listPurchases(): Promise<PurchaseLimitEntry[]> {
   const { data, error } = await supabase
     .from("gold_purchase_limits")
