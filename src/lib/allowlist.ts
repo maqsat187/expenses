@@ -27,6 +27,7 @@ export const ALLOWED_USERS: Identity[] = [
   { surname: "Бекишева", name: "Сауле" },
   { surname: "Айткулов", name: "Арман" },
   { surname: "Оспан", name: "Максат" },
+  { surname: "Гулимбетов", name: "Чингиз" },
 ];
 
 // Default for anyone who hasn't set their own password yet (see
