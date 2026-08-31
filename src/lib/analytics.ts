@@ -56,16 +56,16 @@ export function foldTail(
 
 export type MonthlyValue = { month: string; value: number };
 
-// Fixed window of `months` consecutive, fully-completed calendar months —
-// the current (still in progress) month is deliberately excluded, so a
-// mostly-empty partial month never shows up next to complete ones. A month
-// with no expenses still gets its own zero-value slot instead of being
-// skipped (which would otherwise let sparse data quietly stretch the
-// window further back than "last N months").
+// Fixed window of `months` consecutive calendar months ending with the
+// current one — the current (still in progress) month is included, so
+// today's spending shows up right away rather than waiting for the month
+// to finish. A month with no expenses still gets its own zero-value slot
+// instead of being skipped (which would otherwise let sparse data quietly
+// stretch the window further back than "last N months").
 function lastMonthKeys(months: number): string[] {
   const now = new Date();
   const keys: string[] = [];
-  for (let i = months; i >= 1; i--) {
+  for (let i = months - 1; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     keys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
   }

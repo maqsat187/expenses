@@ -159,7 +159,7 @@ export default function DashboardPage() {
 
           <section className="flex flex-col gap-4">
             <h2 className="text-lg font-medium">
-              По месяцам (последние 10 полных)
+              По месяцам (последние 10, включая текущий)
             </h2>
             <MonthlyColumns items={trend} formatValue={formatCompactCurrency} />
           </section>
