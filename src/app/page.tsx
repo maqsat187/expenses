@@ -25,6 +25,7 @@ export default function EntryPage() {
     new Set(),
   );
   const [filterMonths, setFilterMonths] = useState<Set<string>>(new Set());
+  const [filterBanks, setFilterBanks] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!user) return;
@@ -50,15 +51,24 @@ export default function EntryPage() {
       .map((category) => ({ value: category, label: category }));
   }, [expenses]);
 
+  const bankOptions = useMemo(() => {
+    const banks = new Set((expenses ?? []).map((e) => e.payment_method));
+    return [...banks]
+      .sort((a, b) => a.localeCompare(b, "ru"))
+      .map((bank) => ({ value: bank, label: bank }));
+  }, [expenses]);
+
   const filteredExpenses = useMemo(() => {
     return (expenses ?? []).filter((e) => {
       if (filterCategories.size > 0 && !filterCategories.has(e.category))
         return false;
       if (filterMonths.size > 0 && !filterMonths.has(e.date.slice(0, 7)))
         return false;
+      if (filterBanks.size > 0 && !filterBanks.has(e.payment_method))
+        return false;
       return true;
     });
-  }, [expenses, filterCategories, filterMonths]);
+  }, [expenses, filterCategories, filterMonths, filterBanks]);
 
   const filteredTotal = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
   const filteredBonusTotal = filteredExpenses.reduce(
@@ -67,7 +77,7 @@ export default function EntryPage() {
   );
   const filteredAvgBonusPercent =
     filteredTotal !== 0 ? (filteredBonusTotal / filteredTotal) * 100 : 0;
-  const isFiltered = filterCategories.size > 0 || filterMonths.size > 0;
+  const isFiltered = filterCategories.size > 0 || filterMonths.size > 0 || filterBanks.size > 0;
 
   if (!user) {
     return null;
@@ -149,12 +159,20 @@ export default function EntryPage() {
                 selected={filterCategories}
                 onChange={setFilterCategories}
               />
+              <MultiSelectFilter
+                label="БВУ"
+                placeholder="Все БВУ"
+                options={bankOptions}
+                selected={filterBanks}
+                onChange={setFilterBanks}
+              />
               {isFiltered && (
                 <button
                   type="button"
                   onClick={() => {
                     setFilterMonths(new Set());
                     setFilterCategories(new Set());
+                    setFilterBanks(new Set());
                   }}
                   className="text-sm text-slate-600 hover:underline dark:text-slate-400"
                 >
