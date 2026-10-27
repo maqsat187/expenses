@@ -76,6 +76,15 @@ export default function GoldCoinPage() {
   const diffPercent =
     diffAmount !== null && latest ? (diffAmount / latest.goldCoinPrice) * 100 : null;
 
+  const forecastFixing = snapshot?.forecastFixing ?? null;
+  const tomorrowForecastPrice = forecastFixing
+    ? (forecastFixing.goldSpotPrice / 20) * forecastFixing.kaseRate
+    : null;
+  const tomorrowDiffAmount =
+    tomorrowForecastPrice !== null && latest ? tomorrowForecastPrice - latest.goldCoinPrice : null;
+  const tomorrowDiffPercent =
+    tomorrowDiffAmount !== null && latest ? (tomorrowDiffAmount / latest.goldCoinPrice) * 100 : null;
+
   const nextBusinessDate = nextBusinessDayIso(almatyNow());
 
   const todayIso = almatyTodayIso();
@@ -198,30 +207,56 @@ export default function GoldCoinPage() {
       )}
 
       {market && (
-        <section className="rounded-lg border-2 border-slate-300 p-5 dark:border-slate-700">
-          <h2 className="text-lg font-medium">
-            Прогноз на {formatDateWithWeekday(nextBusinessDate)}
-          </h2>
-          {forecastPrice !== null ? (
-            <>
-              <p className="mt-2 text-3xl font-bold">{formatMoney(forecastPrice)}</p>
-              {latest && diffAmount !== null && diffPercent !== null && (
-                <p className={`mt-1 text-base font-medium ${changeColorClass(diffAmount)}`}>
-                  {formatSignedMoney(diffAmount)} ({formatSignedPercent(diffPercent)}) к цене
-                  Нацбанка на {formatDateWithWeekday(latest.date)}
-                </p>
-              )}
-            </>
-          ) : (
-            <p className="mt-2 text-sm text-red-600 dark:text-red-400">
-              Недоступно: нужны цена золота (Gold-API) и курс KASE, а один из них не загрузился.
+        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="rounded-lg border-2 border-slate-300 p-5 dark:border-slate-700">
+            <h2 className="text-lg font-medium">Прогноз по текущим данным</h2>
+            {forecastPrice !== null ? (
+              <>
+                <p className="mt-2 text-3xl font-bold">{formatMoney(forecastPrice)}</p>
+                {latest && diffAmount !== null && diffPercent !== null && (
+                  <p className={`mt-1 text-base font-medium ${changeColorClass(diffAmount)}`}>
+                    {formatSignedMoney(diffAmount)} ({formatSignedPercent(diffPercent)}) к цене
+                    Нацбанка на {formatDateWithWeekday(latest.date)}
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="mt-2 text-sm text-red-600 dark:text-red-400">
+                Недоступно: нужны цена золота (Gold-API) и курс KASE, а один из них не загрузился.
+              </p>
+            )}
+            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+              Расчёт: (цена золота Gold-API ÷ 20) × средневзвешенный курс USD/KZT KASE прямо
+              сейчас — живые данные на момент нажатия кнопки, а не прогноз на конкретный день.
             </p>
-          )}
-          <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
-            Расчёт: (цена золота Gold-API ÷ 20) × средневзвешенный курс USD/KZT KASE — это
-            простой пересчёт по формуле, а не гарантированный прогноз. Учтены только выходные
-            (сб/вс); праздники РК не исключены.
-          </p>
+          </div>
+
+          <div className="rounded-lg border-2 border-slate-300 p-5 dark:border-slate-700">
+            <h2 className="text-lg font-medium">
+              Прогноз на {formatDateWithWeekday(nextBusinessDate)}
+            </h2>
+            {tomorrowForecastPrice !== null ? (
+              <>
+                <p className="mt-2 text-3xl font-bold">{formatMoney(tomorrowForecastPrice)}</p>
+                {latest && tomorrowDiffAmount !== null && tomorrowDiffPercent !== null && (
+                  <p className={`mt-1 text-base font-medium ${changeColorClass(tomorrowDiffAmount)}`}>
+                    {formatSignedMoney(tomorrowDiffAmount)} ({formatSignedPercent(tomorrowDiffPercent)}
+                    ) к цене Нацбанка на {formatDateWithWeekday(latest.date)}
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                Появится после 15:30 по Алматы — нужно, чтобы кто-то открыл страницу после этого
+                времени и курс KASE оказался живым (не устаревшим).
+              </p>
+            )}
+            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+              Расчёт: цена золота Gold-API и курс USD/KZT KASE фиксируются один раз в день, в
+              момент первого после 15:30 по Алматы живого обновления — дальше не меняются до
+              следующего дня. Учтены только выходные (сб/вс); праздники РК не исключены.
+            </p>
+          </div>
         </section>
       )}
 

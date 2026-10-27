@@ -12,7 +12,8 @@
 import type { MarketData } from "@/lib/marketData";
 import { loadKaseSnapshot, saveKaseSnapshot } from "@/lib/kaseSnapshot";
 import { loadGoldPriceOverride } from "@/lib/nbkGoldOverride";
-import { almatyTodayIso } from "@/lib/goldHistory";
+import { almatyNow, almatyTodayIso } from "@/lib/goldHistory";
+import { loadForecastFixing, saveForecastFixingIfMissing } from "@/lib/goldForecastFixing";
 
 // Some of these sites reject requests without a browser-like User-Agent.
 const UA =
@@ -347,6 +348,16 @@ async function collect<T extends object>(
   }
 }
 
+const FIXING_HOUR = 15;
+const FIXING_MINUTE = 30;
+
+function isAtOrAfterFixingTime(now: Date): boolean {
+  return (
+    now.getUTCHours() > FIXING_HOUR ||
+    (now.getUTCHours() === FIXING_HOUR && now.getUTCMinutes() >= FIXING_MINUTE)
+  );
+}
+
 export async function collectMarketData(): Promise<MarketData> {
   const [goldSpot, kase, nbkGold] = await Promise.all([
     collect(fetchGoldSpot),
@@ -354,11 +365,23 @@ export async function collectMarketData(): Promise<MarketData> {
     collect(fetchNbkGold),
   ]);
 
+  // Only a genuinely live read of both (not a stale KASE fallback) counts
+  // as this moment's real fixing — capturing a stale value would date it
+  // wrong for whichever day it actually came from.
+  if (goldSpot.status === "ok" && kase.status === "ok" && !kase.stale) {
+    const now = almatyNow();
+    if (isAtOrAfterFixingTime(now)) {
+      await saveForecastFixingIfMissing(almatyTodayIso(), goldSpot.price, kase.averagePrice);
+    }
+  }
+  const forecastFixing = await loadForecastFixing(almatyTodayIso());
+
   return {
     generatedAt: new Date().toISOString(),
     goldSpot,
     kase,
     nbkGold,
     crossCheck: crossCheckGoldGram(nbkGold, goldSpot, kase),
+    forecastFixing,
   };
 }
