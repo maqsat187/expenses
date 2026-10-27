@@ -12,7 +12,7 @@
 import type { MarketData } from "@/lib/marketData";
 import { loadKaseSnapshot, saveKaseSnapshot } from "@/lib/kaseSnapshot";
 import { loadGoldPriceOverride } from "@/lib/nbkGoldOverride";
-import { almatyNow, almatyTodayIso } from "@/lib/goldHistory";
+import { almatyTodayIso } from "@/lib/goldHistory";
 import { loadForecastFixing, saveForecastFixingIfMissing } from "@/lib/goldForecastFixing";
 
 // Some of these sites reject requests without a browser-like User-Agent.
@@ -351,11 +351,19 @@ async function collect<T extends object>(
 const FIXING_HOUR = 15;
 const FIXING_MINUTE = 30;
 
-function isAtOrAfterFixingTime(now: Date): boolean {
+function isAtOrAfterFixingTime(almatyShifted: Date): boolean {
   return (
-    now.getUTCHours() > FIXING_HOUR ||
-    (now.getUTCHours() === FIXING_HOUR && now.getUTCMinutes() >= FIXING_MINUTE)
+    almatyShifted.getUTCHours() > FIXING_HOUR ||
+    (almatyShifted.getUTCHours() === FIXING_HOUR &&
+      almatyShifted.getUTCMinutes() >= FIXING_MINUTE)
   );
+}
+
+// Same +5h shift almatyNow() uses, applied to an arbitrary timestamp rather
+// than "now" — lets kase.asOf (which may be well in the past, from the
+// snapshot fallback) be read as Almaty wall-clock time.
+function toAlmatyShifted(iso: string): Date {
+  return new Date(new Date(iso).getTime() + 5 * 60 * 60 * 1000);
 }
 
 export async function collectMarketData(): Promise<MarketData> {
@@ -365,12 +373,17 @@ export async function collectMarketData(): Promise<MarketData> {
     collect(fetchNbkGold),
   ]);
 
-  // Only a genuinely live read of both (not a stale KASE fallback) counts
-  // as this moment's real fixing — capturing a stale value would date it
-  // wrong for whichever day it actually came from.
-  if (goldSpot.status === "ok" && kase.status === "ok" && !kase.stale) {
-    const now = almatyNow();
-    if (isAtOrAfterFixingTime(now)) {
+  // KASE only trades live roughly 10:30-15:45 Almaty — outside that window
+  // every fetch falls back to the last snapshot (kase.stale = true), so
+  // requiring a live read right now would only ever succeed in the ~15
+  // minutes between 15:30 and session close. Checking kase.asOf itself
+  // instead — live or snapshot — catches the value that was actually live
+  // at/after 15:30 today, whenever someone happens to load the page
+  // afterwards, while still refusing a snapshot from an earlier day.
+  if (goldSpot.status === "ok" && kase.status === "ok") {
+    const kaseAsOfAlmaty = toAlmatyShifted(kase.asOf);
+    const kaseAsOfDateIso = kaseAsOfAlmaty.toISOString().slice(0, 10);
+    if (kaseAsOfDateIso === almatyTodayIso() && isAtOrAfterFixingTime(kaseAsOfAlmaty)) {
       await saveForecastFixingIfMissing(almatyTodayIso(), goldSpot.price, kase.averagePrice);
     }
   }
