@@ -26,6 +26,7 @@ export default function EntryPage() {
   );
   const [filterMonths, setFilterMonths] = useState<Set<string>>(new Set());
   const [filterBanks, setFilterBanks] = useState<Set<string>>(new Set());
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     if (!user) return;
@@ -59,6 +60,7 @@ export default function EntryPage() {
   }, [expenses]);
 
   const filteredExpenses = useMemo(() => {
+    const query = search.trim().toLowerCase();
     return (expenses ?? []).filter((e) => {
       if (filterCategories.size > 0 && !filterCategories.has(e.category))
         return false;
@@ -66,9 +68,10 @@ export default function EntryPage() {
         return false;
       if (filterBanks.size > 0 && !filterBanks.has(e.payment_method))
         return false;
+      if (query && !e.name.toLowerCase().includes(query)) return false;
       return true;
     });
-  }, [expenses, filterCategories, filterMonths, filterBanks]);
+  }, [expenses, filterCategories, filterMonths, filterBanks, search]);
 
   const filteredTotal = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
   const filteredBonusTotal = filteredExpenses.reduce(
@@ -77,7 +80,11 @@ export default function EntryPage() {
   );
   const filteredAvgBonusPercent =
     filteredTotal !== 0 ? (filteredBonusTotal / filteredTotal) * 100 : 0;
-  const isFiltered = filterCategories.size > 0 || filterMonths.size > 0 || filterBanks.size > 0;
+  const isFiltered =
+    filterCategories.size > 0 ||
+    filterMonths.size > 0 ||
+    filterBanks.size > 0 ||
+    search.trim().length > 0;
 
   if (!user) {
     return null;
@@ -145,6 +152,13 @@ export default function EntryPage() {
         {expenses && (
           <>
             <div className="flex flex-wrap items-center gap-3">
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Поиск по наименованию…"
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+              />
               <MultiSelectFilter
                 label="Месяцы"
                 placeholder="Все месяцы"
@@ -173,6 +187,7 @@ export default function EntryPage() {
                     setFilterMonths(new Set());
                     setFilterCategories(new Set());
                     setFilterBanks(new Set());
+                    setSearch("");
                   }}
                   className="text-sm text-slate-600 hover:underline dark:text-slate-400"
                 >
