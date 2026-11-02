@@ -20,6 +20,7 @@ import {
 import { clearCurrentUser, isAdmin, canEditGoldPrice } from "@/lib/goldAuth";
 import { useGoldAuthGuard } from "@/lib/useGoldAuthGuard";
 import { GoldPurchaseLimits } from "@/components/GoldPurchaseLimits";
+import { GoldPriceChart } from "@/components/GoldPriceChart";
 
 const HISTORY_DAYS_SHOWN = 5;
 
@@ -155,6 +156,8 @@ export default function GoldCoinPage() {
       {market?.status === "error" && (
         <p className="text-sm text-red-600 dark:text-red-400">{market.message}</p>
       )}
+
+      {!market && <GoldPriceChart />}
 
       {market && (
         <section className="flex flex-col gap-3">
@@ -343,6 +346,8 @@ export default function GoldCoinPage() {
           </p>
         </section>
       )}
+
+      {market && <GoldPriceChart />}
 
       {isAdmin(user) && <GoldPurchaseLimits user={user} />}
     </div>
