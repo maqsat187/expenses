@@ -11,7 +11,7 @@ import { useEffect, useRef } from "react";
 // relying on autosize + container CSS) — the widget's injected markup can
 // end up controlling its own size regardless of the wrapper div's height,
 // so setting it directly here is the reliable way to actually change it.
-const CHART_HEIGHT = 650;
+const CHART_HEIGHT = 150;
 
 export function GoldPriceChart() {
   const containerRef = useRef<HTMLDivElement>(null);
