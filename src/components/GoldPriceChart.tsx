@@ -50,7 +50,7 @@ export function GoldPriceChart() {
       <div
         className="tradingview-widget-container overflow-hidden rounded-lg border border-slate-200 dark:border-slate-800"
         ref={containerRef}
-        style={{ height: 650 }}
+        style={{ height: 1300 }}
       />
       <p className="text-xs text-slate-500 dark:text-slate-400">
         Интерактивный график от TradingView (OANDA:XAUUSD) — масштаб, период и тип графика можно
