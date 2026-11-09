@@ -14,9 +14,7 @@ import {
 import {
   formatMoney,
   formatMoneyPrecise,
-  formatSignedMoney,
   formatSignedMoneyPrecise,
-  formatSignedPercent,
   formatSignedPercentPrecise,
   formatDateWithWeekday,
 } from "@/lib/format";
@@ -182,11 +180,11 @@ export default function GoldCoinPage() {
                     <tr key={point.date}>
                       <td className="px-3 py-2">{formatDateWithWeekday(point.date)}</td>
                       <td className="px-3 py-2 text-right font-medium">
-                        {formatMoney(point.goldCoinPrice)}
+                        {formatMoneyPrecise(point.goldCoinPrice)}
                       </td>
                       <td className={`px-3 py-2 text-right ${changeColorClass(point.changeAmount)}`}>
                         {point.changeAmount !== null && point.changePercent !== null
-                          ? `${formatSignedMoney(point.changeAmount)} (${formatSignedPercent(point.changePercent)})`
+                          ? `${formatSignedMoneyPrecise(point.changeAmount)} (${formatSignedPercentPrecise(point.changePercent)})`
                           : "—"}
                       </td>
                     </tr>
