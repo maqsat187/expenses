@@ -38,13 +38,16 @@ export type MarketData = {
     deviationPercent: number;
     looksConsistent: boolean;
   } | null;
-  // The gold spot price and KASE rate as they stood the first time both
-  // were live (not stale) on or after 15:30 Almaty today — used for the
-  // "forecast for tomorrow" box. Null until someone visits after that time.
+  // The gold spot price and KASE rate captured from whichever reading
+  // landed closest to 15:30 Almaty (candidates considered from 15:00) —
+  // used for the "forecast for tomorrow" box. Stays set from capture until
+  // 9:00 Almaty on the next business day, not just until midnight; null
+  // when nothing is currently valid.
   forecastFixing: {
     date: string;
     goldSpotPrice: number;
     kaseRate: number;
+    kaseAsOf: string;
     capturedAt: string;
   } | null;
 };

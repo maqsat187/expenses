@@ -18,6 +18,17 @@ export function formatMoney(amount: number): string {
   return `${number} ₸`;
 }
 
+// Same as formatMoney, but to hundredths (2 decimal places) rather than
+// whole tenge — used for the Gold Coin forecast figures, where the
+// underlying calculation (spot ÷ 20 × rate) is itself fractional.
+export function formatMoneyPrecise(amount: number): string {
+  const number = new Intl.NumberFormat("ru-RU", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
+  return `${number} ₸`;
+}
+
 // Short form for tight spaces (chart value labels): "7,5 тыс. ₸" instead of
 // "7 480 ₸". Built from the plain compact number rather than
 // `style: "currency"` + `notation: "compact"`, which prints odd trailing
@@ -36,6 +47,15 @@ export function formatPercent(value: number): string {
   }).format(value)}%`;
 }
 
+// Same as formatPercent, but to hundredths — paired with
+// formatMoneyPrecise for the Gold Coin forecast figures.
+export function formatPercentPrecise(value: number): string {
+  return `${new Intl.NumberFormat("ru-RU", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value)}%`;
+}
+
 // Explicit "+" for positive values (Intl already renders negatives with a
 // minus sign) — used where the sign itself is the point, e.g. day-over-day
 // price changes shown in green/red.
@@ -44,9 +64,19 @@ export function formatSignedMoney(amount: number): string {
   return formatMoney(amount);
 }
 
+export function formatSignedMoneyPrecise(amount: number): string {
+  if (amount > 0) return `+${formatMoneyPrecise(amount)}`;
+  return formatMoneyPrecise(amount);
+}
+
 export function formatSignedPercent(value: number): string {
   if (value > 0) return `+${formatPercent(value)}`;
   return formatPercent(value);
+}
+
+export function formatSignedPercentPrecise(value: number): string {
+  if (value > 0) return `+${formatPercentPrecise(value)}`;
+  return formatPercentPrecise(value);
 }
 
 export function formatDate(date: Date | string): string {

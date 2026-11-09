@@ -13,8 +13,11 @@ import {
 } from "@/lib/goldHistory";
 import {
   formatMoney,
+  formatMoneyPrecise,
   formatSignedMoney,
+  formatSignedMoneyPrecise,
   formatSignedPercent,
+  formatSignedPercentPrecise,
   formatDateWithWeekday,
 } from "@/lib/format";
 import { clearCurrentUser, isAdmin, canEditGoldPrice } from "@/lib/goldAuth";
@@ -215,11 +218,11 @@ export default function GoldCoinPage() {
             <h2 className="text-lg font-medium">Прогноз по текущим данным</h2>
             {forecastPrice !== null ? (
               <>
-                <p className="mt-2 text-3xl font-bold">{formatMoney(forecastPrice)}</p>
+                <p className="mt-2 text-3xl font-bold">{formatMoneyPrecise(forecastPrice)}</p>
                 {latest && diffAmount !== null && diffPercent !== null && (
                   <p className={`mt-1 text-base font-medium ${changeColorClass(diffAmount)}`}>
-                    {formatSignedMoney(diffAmount)} ({formatSignedPercent(diffPercent)}) к цене
-                    Нацбанка на {formatDateWithWeekday(latest.date)}
+                    {formatSignedMoneyPrecise(diffAmount)} ({formatSignedPercentPrecise(diffPercent)}) к
+                    цене Нацбанка на {formatDateWithWeekday(latest.date)}
                   </p>
                 )}
               </>
@@ -240,24 +243,25 @@ export default function GoldCoinPage() {
             </h2>
             {tomorrowForecastPrice !== null ? (
               <>
-                <p className="mt-2 text-3xl font-bold">{formatMoney(tomorrowForecastPrice)}</p>
+                <p className="mt-2 text-3xl font-bold">{formatMoneyPrecise(tomorrowForecastPrice)}</p>
                 {latest && tomorrowDiffAmount !== null && tomorrowDiffPercent !== null && (
                   <p className={`mt-1 text-base font-medium ${changeColorClass(tomorrowDiffAmount)}`}>
-                    {formatSignedMoney(tomorrowDiffAmount)} ({formatSignedPercent(tomorrowDiffPercent)}
-                    ) к цене Нацбанка на {formatDateWithWeekday(latest.date)}
+                    {formatSignedMoneyPrecise(tomorrowDiffAmount)} (
+                    {formatSignedPercentPrecise(tomorrowDiffPercent)}) к цене Нацбанка на{" "}
+                    {formatDateWithWeekday(latest.date)}
                   </p>
                 )}
               </>
             ) : (
               <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                Появится после 15:30 по Алматы — нужно, чтобы кто-то открыл страницу после этого
-                времени и курс KASE оказался живым (не устаревшим).
+                Появится после 15:30 по Алматы — фиксируется по показанию KASE, ближайшему к этому
+                времени (начиная с 15:00), и остаётся видимым до 9:00 следующего рабочего дня.
               </p>
             )}
             <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
-              Расчёт: цена золота Gold-API и курс USD/KZT KASE фиксируются один раз в день, в
-              момент первого после 15:30 по Алматы живого обновления — дальше не меняются до
-              следующего дня. Учтены только выходные (сб/вс); праздники РК не исключены.
+              Расчёт: цена золота Gold-API и курс USD/KZT KASE фиксируются раз в день — из всех
+              обновлений начиная с 15:00 по Алматы выбирается то, что ближе всего к 15:30.
+              Сохраняется до 9:00 следующего рабочего дня (выходные и праздники РК — не рабочие).
             </p>
           </div>
         </section>

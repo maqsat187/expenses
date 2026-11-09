@@ -3,6 +3,7 @@
 // /api/market-data (see marketSources.ts) — the National Bank's own page
 // publishes several recent days in one table, so a single server-side fetch
 // captures full history; nothing here fetches on its own.
+import { KZ_HOLIDAYS } from "@/lib/kzHolidays";
 
 // "Gold Coin" here means 1/20 troy ounce (≈1.555 g) — the weight the
 // forecast formula on the page is built around (spot ÷ 20).
@@ -64,15 +65,31 @@ export function addDaysIso(dateIso: string, days: number): string {
   return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
 }
 
-// Next weekday after `from`. Public holidays specific to Kazakhstan (Nauryz,
-// Kurban Ait, etc.) aren't accounted for — those shift year to year and
-// would need a maintained list; this only skips Saturday/Sunday.
+// Next weekday after `from`, skipping Kazakhstan public holidays too (see
+// kzHolidays.ts).
 export function nextBusinessDayIso(from: Date): string {
   const next = new Date(
     Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate() + 1),
   );
-  while (next.getUTCDay() === 0 || next.getUTCDay() === 6) {
+  while (isWeekendOrHoliday(next)) {
     next.setUTCDate(next.getUTCDate() + 1);
   }
   return next.toISOString().slice(0, 10);
+}
+
+// Mirror of nextBusinessDayIso, walking backward — the most recent business
+// day strictly before `from`.
+export function previousBusinessDayIso(from: Date): string {
+  const prev = new Date(
+    Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate() - 1),
+  );
+  while (isWeekendOrHoliday(prev)) {
+    prev.setUTCDate(prev.getUTCDate() - 1);
+  }
+  return prev.toISOString().slice(0, 10);
+}
+
+function isWeekendOrHoliday(date: Date): boolean {
+  if (date.getUTCDay() === 0 || date.getUTCDay() === 6) return true;
+  return KZ_HOLIDAYS.has(date.toISOString().slice(0, 10));
 }

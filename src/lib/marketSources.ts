@@ -12,8 +12,12 @@
 import type { MarketData } from "@/lib/marketData";
 import { loadKaseSnapshot, saveKaseSnapshot } from "@/lib/kaseSnapshot";
 import { loadGoldPriceOverride } from "@/lib/nbkGoldOverride";
-import { almatyTodayIso } from "@/lib/goldHistory";
-import { loadForecastFixing, saveForecastFixingIfMissing } from "@/lib/goldForecastFixing";
+import { almatyNow, almatyTodayIso, nextBusinessDayIso, previousBusinessDayIso } from "@/lib/goldHistory";
+import {
+  loadForecastFixing,
+  saveForecastFixingIfCloser,
+  type GoldForecastFixing,
+} from "@/lib/goldForecastFixing";
 
 // Some of these sites reject requests without a browser-like User-Agent.
 const UA =
@@ -348,15 +352,24 @@ async function collect<T extends object>(
   }
 }
 
-const FIXING_HOUR = 15;
-const FIXING_MINUTE = 30;
+// Candidates are considered from 15:00 Almaty; the one closest to the
+// 15:30 target wins (see saveForecastFixingIfCloser). 15:30 Almaty is
+// 10:30 UTC year-round (Kazakhstan doesn't observe DST).
+const FIXING_WINDOW_START_HOUR = 15;
+const FIXING_WINDOW_START_MINUTE = 0;
+const FIXING_VALID_UNTIL_HOUR = 9;
+const FIXING_VALID_UNTIL_MINUTE = 0;
 
-function isAtOrAfterFixingTime(almatyShifted: Date): boolean {
+function isInFixingWindow(almatyShifted: Date): boolean {
   return (
-    almatyShifted.getUTCHours() > FIXING_HOUR ||
-    (almatyShifted.getUTCHours() === FIXING_HOUR &&
-      almatyShifted.getUTCMinutes() >= FIXING_MINUTE)
+    almatyShifted.getUTCHours() > FIXING_WINDOW_START_HOUR ||
+    (almatyShifted.getUTCHours() === FIXING_WINDOW_START_HOUR &&
+      almatyShifted.getUTCMinutes() >= FIXING_WINDOW_START_MINUTE)
   );
+}
+
+function fixingTargetMs(dateIso: string): number {
+  return new Date(`${dateIso}T10:30:00.000Z`).getTime();
 }
 
 // Same +5h shift almatyNow() uses, applied to an arbitrary timestamp rather
@@ -364,6 +377,31 @@ function isAtOrAfterFixingTime(almatyShifted: Date): boolean {
 // snapshot fallback) be read as Almaty wall-clock time.
 function toAlmatyShifted(iso: string): Date {
   return new Date(new Date(iso).getTime() + 5 * 60 * 60 * 1000);
+}
+
+// The fixing stays on screen from whenever it was captured until 9:00
+// Almaty on the next business day after it — not just until midnight.
+// Checks today's fixing first, then falls back to the last business day's
+// if we're still inside its validity window.
+async function getActiveForecastFixing(): Promise<GoldForecastFixing | null> {
+  const todayFixing = await loadForecastFixing(almatyTodayIso());
+  if (todayFixing) return todayFixing;
+
+  const prevBizDay = previousBusinessDayIso(almatyNow());
+  const prevFixing = await loadForecastFixing(prevBizDay);
+  if (!prevFixing) return null;
+
+  const validUntilDate = nextBusinessDayIso(new Date(`${prevBizDay}T00:00:00.000Z`));
+  const nowAlmaty = almatyNow();
+  const nowDateIso = nowAlmaty.toISOString().slice(0, 10);
+
+  if (nowDateIso < validUntilDate) return prevFixing;
+  if (nowDateIso === validUntilDate) {
+    const minutesNow = nowAlmaty.getUTCHours() * 60 + nowAlmaty.getUTCMinutes();
+    const cutoff = FIXING_VALID_UNTIL_HOUR * 60 + FIXING_VALID_UNTIL_MINUTE;
+    if (minutesNow < cutoff) return prevFixing;
+  }
+  return null;
 }
 
 export async function collectMarketData(): Promise<MarketData> {
@@ -375,19 +413,25 @@ export async function collectMarketData(): Promise<MarketData> {
 
   // KASE only trades live roughly 10:30-15:45 Almaty — outside that window
   // every fetch falls back to the last snapshot (kase.stale = true), so
-  // requiring a live read right now would only ever succeed in the ~15
-  // minutes between 15:30 and session close. Checking kase.asOf itself
-  // instead — live or snapshot — catches the value that was actually live
-  // at/after 15:30 today, whenever someone happens to load the page
-  // afterwards, while still refusing a snapshot from an earlier day.
+  // checking kase.asOf itself (live or snapshot) rather than requiring a
+  // live read right now catches the value that was actually live earlier
+  // today, whenever someone happens to load the page afterwards, while
+  // still refusing a snapshot from an earlier day.
   if (goldSpot.status === "ok" && kase.status === "ok") {
     const kaseAsOfAlmaty = toAlmatyShifted(kase.asOf);
     const kaseAsOfDateIso = kaseAsOfAlmaty.toISOString().slice(0, 10);
-    if (kaseAsOfDateIso === almatyTodayIso() && isAtOrAfterFixingTime(kaseAsOfAlmaty)) {
-      await saveForecastFixingIfMissing(almatyTodayIso(), goldSpot.price, kase.averagePrice);
+    if (kaseAsOfDateIso === almatyTodayIso() && isInFixingWindow(kaseAsOfAlmaty)) {
+      const distance = Math.abs(new Date(kase.asOf).getTime() - fixingTargetMs(kaseAsOfDateIso));
+      await saveForecastFixingIfCloser(
+        kaseAsOfDateIso,
+        goldSpot.price,
+        kase.averagePrice,
+        kase.asOf,
+        distance,
+      );
     }
   }
-  const forecastFixing = await loadForecastFixing(almatyTodayIso());
+  const forecastFixing = await getActiveForecastFixing();
 
   return {
     generatedAt: new Date().toISOString(),
