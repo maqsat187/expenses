@@ -1,5 +1,6 @@
-// Checked every 15 minutes by GitHub Actions (.github/workflows/xau-alert.yml):
-// if the forecast gold price -- the same tenge figure as the first box on
+// Checked every 15 minutes by an external scheduler (a cron-job.org job;
+// GitHub Actions' schedule trigger never fired for this repo, and Vercel
+// Cron on the Hobby plan only allows once a day): if the forecast gold price -- the same tenge figure as the first box on
 // the Gold Coin page, goldSpot converted through the live KASE rate, see
 // getForecastPrice() -- has moved MOVE_THRESHOLD_PERCENT since the last
 // alert, posts about it to the Telegram group (src/lib/telegram.ts) and

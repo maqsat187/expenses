@@ -1,10 +1,9 @@
-// Called by GitHub Actions on a fixed schedule -- 10:50, 11:50, 12:50,
-// 13:50, 14:50 Almaty, Mon-Fri -- to post the current "forecast by
-// current data" gold price to the Telegram group
-// (.github/workflows/xau-price-broadcast.yml). The workflow's cron
-// day-of-week already skips weekends; this also skips Kazakhstan public
-// holidays (and re-checks weekends, as a safety net for a manual
-// workflow_dispatch run) so a holiday never gets a broadcast.
+// Called by external scheduler jobs (cron-job.org) at 10:50, 11:50, 12:50,
+// 13:50, 14:50 and 15:30 Almaty, Mon-Fri, to post the current "forecast
+// by current data" gold price to the Telegram group. The jobs' day-of-week
+// setting already skips weekends; this also skips Kazakhstan public
+// holidays (and re-checks weekends, as a safety net for a manual run) so a
+// holiday never gets a broadcast.
 //
 // Protected by CRON_SECRET the same way as xau-move/route.ts.
 import { NextRequest, NextResponse } from "next/server";
