@@ -4,9 +4,13 @@ name: XAU/USD move alert
 # for catching a 2% intraday move (see src/app/api/alerts/xau-move/route.ts).
 # This runs on GitHub's free scheduler instead, with no such limit, and
 # just hits that endpoint -- all the actual logic lives there.
+#
+# Minutes are offset from :00/:15/:30/:45 on purpose: GitHub's own docs
+# warn that exactly-on-the-hour/quarter-hour schedules hit the heaviest
+# queue load and can be silently skipped (no retry) rather than delayed.
 on:
   schedule:
-    - cron: "*/15 * * * *"
+    - cron: "7,22,37,52 * * * *"
   workflow_dispatch: {}
 
 jobs:
