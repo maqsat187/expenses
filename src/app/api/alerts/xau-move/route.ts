@@ -36,10 +36,17 @@ function formatAlmaty(date: Date): string {
   }).format(date);
 }
 
+// Logged so scheduled calls show up in Vercel's runtime logs -- a "no-move"
+// check otherwise leaves no trace anywhere.
+function respond(body: Record<string, unknown>, status = 200) {
+  console.log("xau-move", JSON.stringify(body));
+  return NextResponse.json(body, { status });
+}
+
 export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET;
   if (secret && request.headers.get("authorization") !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    return respond({ error: "unauthorized" }, 401);
   }
 
   try {
@@ -48,13 +55,13 @@ export async function GET(request: NextRequest) {
 
     if (!state) {
       await saveXauAlertState(price);
-      return NextResponse.json({ status: "seeded", price });
+      return respond({ status: "seeded", price });
     }
 
     const changePercent = ((price - state.lastAlertPrice) / state.lastAlertPrice) * 100;
 
     if (Math.abs(changePercent) < MOVE_THRESHOLD_PERCENT) {
-      return NextResponse.json({ status: "no-move", price, changePercent });
+      return respond({ status: "no-move", price, changePercent });
     }
 
     const direction = changePercent > 0 ? "📈 выросла" : "📉 упала";
@@ -66,9 +73,9 @@ export async function GET(request: NextRequest) {
     await sendTelegramMessage(text);
     await saveXauAlertState(price);
 
-    return NextResponse.json({ status: "alerted", price, changePercent });
+    return respond({ status: "alerted", price, changePercent });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return respond({ error: message }, 500);
   }
 }
