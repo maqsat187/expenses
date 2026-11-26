@@ -90,7 +90,9 @@ function contextAround(text: string, index: number, rawLength: number): string {
 }
 
 // --- GOLD SPOT USD (Gold-API.com) -----------------------------------------
-async function fetchGoldSpot() {
+// Exported too: the XAU/USD move alert (src/app/api/alerts/xau-move/route.ts)
+// reuses this instead of duplicating the fetch.
+export async function fetchGoldSpot() {
   const response = await request("https://api.gold-api.com/price/XAU", {
     headers: { Accept: "application/json" },
   });
