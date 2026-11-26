@@ -1,8 +1,11 @@
-// Server-only. Remembers the XAU/USD price at the time of the last "moved
-// 2%" alert sent to Telegram (see src/app/api/alerts/xau-move/route.ts) —
-// each check compares the live price against this, not a fixed daily
+// Server-only. Remembers the forecast gold price (tenge, see
+// getForecastPrice() in goldForecastPrice.ts) at the time of the last
+// "moved 2%" alert sent to Telegram (see src/app/api/alerts/xau-move/route.ts)
+// — each check compares the live price against this, not a fixed daily
 // reference, and overwrites it whenever a new alert fires. Always a single
-// row (id = 1).
+// row (id = 1). The column is still named for the feature's original
+// XAU/USD-only metric; no schema change needed since it's just a number
+// either way.
 import { supabase } from "@/lib/supabase";
 
 export type XauAlertState = {

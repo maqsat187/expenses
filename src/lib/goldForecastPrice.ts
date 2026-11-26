@@ -1,9 +1,11 @@
 // Server-only. The same "forecast by current data" figure shown in the
 // first box on the Gold Coin page (src/app/gold/page.tsx's forecastPrice
-// and diffAmount/diffPercent vs the latest NBK price) -- reused by both
-// the scheduled Telegram broadcast (src/app/api/alerts/xau-price/route.ts)
-// and the /price command (src/app/api/telegram/webhook/route.ts) so the
-// numbers always match what's on the page.
+// and diffAmount/diffPercent vs the latest NBK price) -- reused by the
+// scheduled Telegram broadcast (src/app/api/alerts/xau-price/route.ts),
+// the /price command (src/app/api/telegram/webhook/route.ts), and the
+// move alert (src/app/api/alerts/xau-move/route.ts, which tracks this
+// tenge figure rather than the raw USD gold spot) so the numbers always
+// match what's on the page.
 import { fetchGoldSpot, fetchKaseAverage, fetchNbkGold } from "@/lib/marketSources";
 import { buildDailyGoldCoinSeries } from "@/lib/goldHistory";
 import {
@@ -13,9 +15,13 @@ import {
   formatDateWithWeekday,
 } from "@/lib/format";
 
-export async function buildForecastPriceMessage(): Promise<string> {
+export async function getForecastPrice(): Promise<number> {
   const [goldSpot, kase] = await Promise.all([fetchGoldSpot(), fetchKaseAverage()]);
-  const forecastPrice = (goldSpot.price / 20) * kase.averagePrice;
+  return (goldSpot.price / 20) * kase.averagePrice;
+}
+
+export async function buildForecastPriceMessage(): Promise<string> {
+  const forecastPrice = await getForecastPrice();
 
   let diffLine = "";
   try {

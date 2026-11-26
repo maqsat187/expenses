@@ -1,20 +1,24 @@
-// Checked by Vercel Cron every 15 minutes (see vercel.json): if XAU/USD has
-// moved MOVE_THRESHOLD_PERCENT since the last alert, posts about it to the
-// Telegram group (src/lib/telegram.ts) and remembers the new price as the
-// baseline for the next check (src/lib/xauAlertState.ts) — so a sustained
-// move keeps alerting every extra 2% rather than only once per day.
+// Checked every 15 minutes by GitHub Actions (.github/workflows/xau-alert.yml):
+// if the forecast gold price -- the same tenge figure as the first box on
+// the Gold Coin page, goldSpot converted through the live KASE rate, see
+// getForecastPrice() -- has moved MOVE_THRESHOLD_PERCENT since the last
+// alert, posts about it to the Telegram group (src/lib/telegram.ts) and
+// remembers the new price as the baseline for the next check
+// (src/lib/xauAlertState.ts) -- so a sustained move keeps alerting every
+// extra 2% rather than only once. Tracking this combined tenge price
+// rather than the raw USD gold spot means a move in either the gold price
+// or the USD/KZT rate (or both together) can trigger it.
 //
 // The very first run ever (no stored state yet) just records the current
-// price as the baseline instead of alerting — there's nothing to compare
+// price as the baseline instead of alerting -- there's nothing to compare
 // against yet.
 //
-// Protected by CRON_SECRET: Vercel automatically sends it as a Bearer
-// token on cron-triggered requests once that env var is set
-// (https://vercel.com/docs/cron-jobs/manage-cron-jobs#securing-cron-jobs).
+// Protected by CRON_SECRET, checked the same way as xau-price/route.ts.
 import { NextRequest, NextResponse } from "next/server";
-import { fetchGoldSpot } from "@/lib/marketSources";
+import { getForecastPrice } from "@/lib/goldForecastPrice";
 import { loadXauAlertState, saveXauAlertState } from "@/lib/xauAlertState";
 import { sendTelegramMessage } from "@/lib/telegram";
+import { formatMoneyPrecise, formatSignedPercentPrecise } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +42,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const { price } = await fetchGoldSpot();
+    const price = await getForecastPrice();
     const state = await loadXauAlertState();
 
     if (!state) {
@@ -52,12 +56,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ status: "no-move", price, changePercent });
     }
 
-    const sign = changePercent > 0 ? "+" : "";
     const direction = changePercent > 0 ? "📈 выросла" : "📉 упала";
     const text =
-      `${direction} на ${sign}${changePercent.toFixed(2)}% — XAU/USD\n` +
-      `Было: $${state.lastAlertPrice.toFixed(2)} (${formatAlmaty(new Date(state.lastAlertAt))})\n` +
-      `Сейчас: $${price.toFixed(2)} (${formatAlmaty(new Date())})`;
+      `${direction} на ${formatSignedPercentPrecise(changePercent)} — прогнозная цена золота (Gold Coin)\n` +
+      `Было: ${formatMoneyPrecise(state.lastAlertPrice)} (${formatAlmaty(new Date(state.lastAlertAt))})\n` +
+      `Сейчас: ${formatMoneyPrecise(price)} (${formatAlmaty(new Date())})`;
 
     await sendTelegramMessage(text);
     await saveXauAlertState(price);
