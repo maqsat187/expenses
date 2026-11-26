@@ -273,7 +273,10 @@ async function fetchNbkLive(): Promise<NbkGoldResult> {
 // fetched, or used alone if the live fetch failed outright. A live value
 // for today always wins over the override once the National Bank actually
 // publishes it, so nothing needs to be cleared by hand.
-async function fetchNbkGold(): Promise<NbkGoldResult> {
+// Exported too: the scheduled price broadcast and /price command
+// (src/lib/goldForecastPrice.ts) reuse this for the "vs NBK" diff, same as
+// the Gold Coin page.
+export async function fetchNbkGold(): Promise<NbkGoldResult> {
   const todayIso = almatyTodayIso();
 
   let live: NbkGoldResult | null = null;
