@@ -6,7 +6,7 @@
 // alert, posts about it to the Telegram group (src/lib/telegram.ts) and
 // remembers the new price as the baseline for the next check
 // (src/lib/xauAlertState.ts) -- so a sustained move keeps alerting every
-// extra 2% rather than only once. Tracking this combined tenge price
+// extra MOVE_THRESHOLD_PERCENT rather than only once. Tracking this combined tenge price
 // rather than the raw USD gold spot means a move in either the gold price
 // or the USD/KZT rate (or both together) can trigger it.
 //
@@ -23,7 +23,7 @@ import { formatMoneyPrecise, formatSignedPercentPrecise } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
-const MOVE_THRESHOLD_PERCENT = 2;
+const MOVE_THRESHOLD_PERCENT = 1;
 
 function formatAlmaty(date: Date): string {
   return new Intl.DateTimeFormat("ru-RU", {
