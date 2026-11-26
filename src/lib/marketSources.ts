@@ -165,7 +165,9 @@ async function fetchKaseLive() {
 // value (see kaseSnapshot.ts) for when KASE has nothing right now — most
 // commonly outside the ~10:30+ Almaty trading session, when there's no
 // average price for the day yet.
-async function fetchKaseAverage() {
+// Exported too: the /price command and scheduled price broadcast
+// (src/lib/goldForecastPrice.ts) reuse this instead of duplicating it.
+export async function fetchKaseAverage() {
   try {
     const live = await fetchKaseLive();
     await saveKaseSnapshot(live);

@@ -1,0 +1,24 @@
+name: Scheduled gold price broadcast
+
+# 10:50, 11:50, 12:50, 13:50, 14:50 Almaty (UTC+5) = 05:50, 06:50, 07:50,
+# 08:50, 09:50 UTC. "1-5" already skips Sat/Sun; the route itself
+# (src/app/api/alerts/xau-price/route.ts) also skips Kazakhstan public
+# holidays before sending anything.
+on:
+  schedule:
+    - cron: "50 5 * * 1-5"
+    - cron: "50 6 * * 1-5"
+    - cron: "50 7 * * 1-5"
+    - cron: "50 8 * * 1-5"
+    - cron: "50 9 * * 1-5"
+  workflow_dispatch: {}
+
+jobs:
+  broadcast:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send current gold price forecast to Telegram
+        run: |
+          curl -sS -f \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://maqsat187.vercel.app/api/alerts/xau-price"

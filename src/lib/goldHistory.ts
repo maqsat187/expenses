@@ -89,7 +89,12 @@ export function previousBusinessDayIso(from: Date): string {
   return prev.toISOString().slice(0, 10);
 }
 
-function isWeekendOrHoliday(date: Date): boolean {
+// Exported too: the scheduled Telegram price broadcast
+// (src/app/api/alerts/xau-price/route.ts) uses this to skip weekends and
+// KZ holidays. Expects a date already shifted the way almatyNow() shifts
+// it (or built the way nextBusinessDayIso/previousBusinessDayIso build
+// one), so its UTC fields read as Almaty wall-clock fields.
+export function isWeekendOrHoliday(date: Date): boolean {
   if (date.getUTCDay() === 0 || date.getUTCDay() === 6) return true;
   return KZ_HOLIDAYS.has(date.toISOString().slice(0, 10));
 }
