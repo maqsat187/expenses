@@ -1,0 +1,20 @@
+name: XAU/USD move alert
+
+# Vercel's own Cron Jobs are Hobby-plan limited to once a day, too coarse
+# for catching a 2% intraday move (see src/app/api/alerts/xau-move/route.ts).
+# This runs on GitHub's free scheduler instead, with no such limit, and
+# just hits that endpoint -- all the actual logic lives there.
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check XAU/USD and alert on Telegram if it moved 2%
+        run: |
+          curl -sS -f \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://maqsat187.vercel.app/api/alerts/xau-move"
